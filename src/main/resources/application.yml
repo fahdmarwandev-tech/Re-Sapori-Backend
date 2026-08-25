@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: e-commerce
+
+  datasource:
+    url: ${DB_LOCAL_URL}
+    username: ${DB_LOCAL_USERNAME}
+    password: ${DB_LOCAL_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+logging:
+  level:
+    liquibase: DEBUG
+    org.springframework.boot.autoconfigure.liquibase: DEBUG

@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres:latest
+    container_name: resapori-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=resaporidb
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
