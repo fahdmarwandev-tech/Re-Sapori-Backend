@@ -1,9 +1,18 @@
 package com.resapori.e_commerce.southbound.entity;
 
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "menu_categories")
 public class MenuCategory extends BaseEntity {
@@ -17,27 +26,4 @@ public class MenuCategory extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
-    public String getNameEn() {
-        return nameEn;
-    }
-
-    public void setNameEn(String nameEn) {
-        this.nameEn = nameEn;
-    }
-
-    public String getNameAr() {
-        return nameAr;
-    }
-
-    public void setNameAr(String nameAr) {
-        this.nameAr = nameAr;
-    }
-
-    public Integer getDisplayOrder() {
-        return displayOrder;
-    }
-
-    public void setDisplayOrder(Integer displayOrder) {
-        this.displayOrder = displayOrder;
-    }
 }

@@ -1,5 +1,10 @@
 package com.resapori.e_commerce.southbound.entity;
 
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import com.resapori.e_commerce.southbound.enums.OrderStatus;
 import com.resapori.e_commerce.southbound.enums.OrderType;
 import com.resapori.e_commerce.southbound.enums.PaymentMethod;
@@ -13,6 +18,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "orders")
 public class Order extends BaseEntity {
@@ -53,83 +62,4 @@ public class Order extends BaseEntity {
     @Column(name = "paymob_transaction_id")
     private String paymobTransactionId;
 
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public Branch getBranch() {
-        return branch;
-    }
-
-    public void setBranch(Branch branch) {
-        this.branch = branch;
-    }
-
-    public OrderStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(OrderStatus status) {
-        this.status = status;
-    }
-
-    public OrderType getOrderType() {
-        return orderType;
-    }
-
-    public void setOrderType(OrderType orderType) {
-        this.orderType = orderType;
-    }
-
-    public PaymentMethod getPaymentMethod() {
-        return paymentMethod;
-    }
-
-    public void setPaymentMethod(PaymentMethod paymentMethod) {
-        this.paymentMethod = paymentMethod;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public void setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public String getDeliveryAddress() {
-        return deliveryAddress;
-    }
-
-    public void setDeliveryAddress(String deliveryAddress) {
-        this.deliveryAddress = deliveryAddress;
-    }
-
-    public String getPaymobOrderId() {
-        return paymobOrderId;
-    }
-
-    public void setPaymobOrderId(String paymobOrderId) {
-        this.paymobOrderId = paymobOrderId;
-    }
-
-    public String getPaymobTransactionId() {
-        return paymobTransactionId;
-    }
-
-    public void setPaymobTransactionId(String paymobTransactionId) {
-        this.paymobTransactionId = paymobTransactionId;
-    }
 }

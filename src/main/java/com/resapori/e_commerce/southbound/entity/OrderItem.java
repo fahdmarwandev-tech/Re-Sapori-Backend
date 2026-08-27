@@ -1,5 +1,10 @@
 package com.resapori.e_commerce.southbound.entity;
 
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,6 +13,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "order_items")
 public class OrderItem extends BaseEntity {
@@ -26,35 +35,4 @@ public class OrderItem extends BaseEntity {
     @Column(name = "unit_price_at_purchase", nullable = false)
     private BigDecimal unitPriceAtPurchase;
 
-    public Order getOrder() {
-        return order;
-    }
-
-    public void setOrder(Order order) {
-        this.order = order;
-    }
-
-    public MenuItem getMenuItem() {
-        return menuItem;
-    }
-
-    public void setMenuItem(MenuItem menuItem) {
-        this.menuItem = menuItem;
-    }
-
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
-    }
-
-    public BigDecimal getUnitPriceAtPurchase() {
-        return unitPriceAtPurchase;
-    }
-
-    public void setUnitPriceAtPurchase(BigDecimal unitPriceAtPurchase) {
-        this.unitPriceAtPurchase = unitPriceAtPurchase;
-    }
 }

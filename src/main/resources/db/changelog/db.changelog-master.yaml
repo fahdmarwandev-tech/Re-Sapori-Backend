@@ -29,3 +29,11 @@ databaseChangeLog:
       file: db/changelog/changes/14-alter-orders-payment-fields.sql
   - include:
       file: db/changelog/changes/15-create-payments.sql
+  - include:
+      file: db/changelog/changes/16-create-promo-code-enum.sql
+  - include:
+      file: db/changelog/changes/17-create-promo-codes.sql
+  - include:
+      file: db/changelog/changes/18-create-promo-code-redemptions.sql
+  - include:
+      file: db/changelog/changes/19-create-refresh-tokens.sql

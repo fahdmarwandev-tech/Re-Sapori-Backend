@@ -1,5 +1,10 @@
 package com.resapori.e_commerce.southbound.entity;
 
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import com.resapori.e_commerce.southbound.enums.PaymentMethod;
 import com.resapori.e_commerce.southbound.enums.PaymentStatus;
 import jakarta.persistence.Column;
@@ -16,6 +21,10 @@ import jakarta.persistence.Table;
  * An order may have multiple Payment records (e.g., one failed attempt followed by a successful one).
  * The raw Paymob callback payload is persisted for debugging and reconciliation.
  */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "payments")
 public class Payment extends BaseEntity {
@@ -51,67 +60,4 @@ public class Payment extends BaseEntity {
     @Column(name = "paymob_callback_raw", columnDefinition = "TEXT")
     private String paymobCallbackRaw;
 
-    public Order getOrder() {
-        return order;
-    }
-
-    public void setOrder(Order order) {
-        this.order = order;
-    }
-
-    public String getPaymobOrderId() {
-        return paymobOrderId;
-    }
-
-    public void setPaymobOrderId(String paymobOrderId) {
-        this.paymobOrderId = paymobOrderId;
-    }
-
-    public String getPaymobTransactionId() {
-        return paymobTransactionId;
-    }
-
-    public void setPaymobTransactionId(String paymobTransactionId) {
-        this.paymobTransactionId = paymobTransactionId;
-    }
-
-    public PaymentStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(PaymentStatus status) {
-        this.status = status;
-    }
-
-    public PaymentMethod getPaymentMethod() {
-        return paymentMethod;
-    }
-
-    public void setPaymentMethod(PaymentMethod paymentMethod) {
-        this.paymentMethod = paymentMethod;
-    }
-
-    public Long getAmountCents() {
-        return amountCents;
-    }
-
-    public void setAmountCents(Long amountCents) {
-        this.amountCents = amountCents;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public String getPaymobCallbackRaw() {
-        return paymobCallbackRaw;
-    }
-
-    public void setPaymobCallbackRaw(String paymobCallbackRaw) {
-        this.paymobCallbackRaw = paymobCallbackRaw;
-    }
 }

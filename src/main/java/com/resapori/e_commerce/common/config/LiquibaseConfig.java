@@ -1,4 +1,4 @@
-package com.resapori.e_commerce.config;
+package com.resapori.e_commerce.common.config;
 
 import javax.sql.DataSource;
 import liquibase.integration.spring.SpringLiquibase;

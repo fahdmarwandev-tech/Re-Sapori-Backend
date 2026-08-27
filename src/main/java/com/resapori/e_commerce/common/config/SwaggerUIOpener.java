@@ -1,4 +1,4 @@
-package com.resapori.e_commerce.config;
+package com.resapori.e_commerce.common.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
