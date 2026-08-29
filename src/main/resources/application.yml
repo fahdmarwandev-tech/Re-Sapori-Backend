@@ -24,3 +24,6 @@ logging:
   level:
     liquibase: DEBUG
     org.springframework.boot.autoconfigure.liquibase: DEBUG
+
+jwt:
+  secret: ${JWT_SECRET}

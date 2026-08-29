@@ -19,7 +19,7 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret:defaultSecretKeyWithAtLeast32CharactersForHmacSha256Algorithm}")
+    @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.access-token.expiration:900000}") // 15 minutes default

@@ -37,3 +37,7 @@ databaseChangeLog:
       file: db/changelog/changes/18-create-promo-code-redemptions.sql
   - include:
       file: db/changelog/changes/19-create-refresh-tokens.sql
+  - include:
+      file: db/changelog/changes/20-alter-users-add-address.sql
+  - include:
+      file: db/changelog/changes/21-create-user-addresses.sql
