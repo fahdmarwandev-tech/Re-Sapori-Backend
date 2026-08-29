@@ -39,6 +39,8 @@ public class SecurityConfig {
                     "/swagger-resources/**",
                     "/webjars/**"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/menu/**", "/api/branches/**").permitAll()
+                .requestMatchers("/api/menu/**", "/api/branches/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

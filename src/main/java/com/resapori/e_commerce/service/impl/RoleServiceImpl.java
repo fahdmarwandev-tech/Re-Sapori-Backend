@@ -1,10 +1,10 @@
 package com.resapori.e_commerce.service.impl;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.role.RoleRequest;
+import com.resapori.e_commerce.northbound.dto.role.RoleResponse;
 import com.resapori.e_commerce.service.IRoleService;
-import com.resapori.e_commerce.southbound.entity.Role;
 import com.resapori.e_commerce.southbound.repository.IRoleRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,22 +17,22 @@ public class RoleServiceImpl implements IRoleService {
     private final IRoleRepository repository;
 
     @Override
-    public Role create(Role entity) {
+    public RoleResponse create(RoleRequest request) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public Role getById(UUID id) {
+    public RoleResponse getById(UUID id) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public List<Role> getAll() {
+    public List<RoleResponse> getAll() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public Role update(UUID id, Role entity) {
+    public RoleResponse update(UUID id, RoleRequest request) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 

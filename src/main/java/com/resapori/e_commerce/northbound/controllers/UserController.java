@@ -1,9 +1,9 @@
 package com.resapori.e_commerce.northbound.controllers;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.user.UserResponse;
+import com.resapori.e_commerce.northbound.dto.user.UserUpdateRequest;
 import com.resapori.e_commerce.service.IUserService;
-import com.resapori.e_commerce.southbound.entity.User;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,26 +17,25 @@ public class UserController {
 
     private final IUserService service;
 
-    @PostMapping
-    public ResponseEntity<User> create(@RequestBody User entity) {
-        return ResponseEntity.ok(service.create(entity));
-    }
-
+    /** GET /api/users/{id} — get user profile (ADMIN or own user). */
     @GetMapping("/{id}")
-    public ResponseEntity<User> getById(@PathVariable UUID id) {
+    public ResponseEntity<UserResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
+    /** GET /api/users — list all users (ADMIN only). */
     @GetMapping
-    public ResponseEntity<List<User>> getAll() {
+    public ResponseEntity<List<UserResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
+    /** PUT /api/users/{id} — update user profile (own user or ADMIN). */
     @PutMapping("/{id}")
-    public ResponseEntity<User> update(@PathVariable UUID id, @RequestBody User entity) {
-        return ResponseEntity.ok(service.update(id, entity));
+    public ResponseEntity<UserResponse> update(@PathVariable UUID id, @RequestBody UserUpdateRequest request) {
+        return ResponseEntity.ok(service.update(id, request));
     }
 
+    /** DELETE /api/users/{id} — deactivate user account (ADMIN only). */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

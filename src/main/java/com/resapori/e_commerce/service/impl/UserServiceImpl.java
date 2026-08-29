@@ -1,10 +1,10 @@
 package com.resapori.e_commerce.service.impl;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.user.UserResponse;
+import com.resapori.e_commerce.northbound.dto.user.UserUpdateRequest;
 import com.resapori.e_commerce.service.IUserService;
-import com.resapori.e_commerce.southbound.entity.User;
 import com.resapori.e_commerce.southbound.repository.IUserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,22 +17,17 @@ public class UserServiceImpl implements IUserService {
     private final IUserRepository repository;
 
     @Override
-    public User create(User entity) {
+    public UserResponse getById(UUID id) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public User getById(UUID id) {
+    public List<UserResponse> getAll() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public List<User> getAll() {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public User update(UUID id, User entity) {
+    public UserResponse update(UUID id, UserUpdateRequest request) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 

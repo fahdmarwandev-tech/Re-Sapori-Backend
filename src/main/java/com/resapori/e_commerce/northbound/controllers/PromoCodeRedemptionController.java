@@ -1,9 +1,8 @@
 package com.resapori.e_commerce.northbound.controllers;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.promo.PromoCodeRedemptionResponse;
 import com.resapori.e_commerce.service.IPromoCodeRedemptionService;
-import com.resapori.e_commerce.southbound.entity.PromoCodeRedemption;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,29 +16,27 @@ public class PromoCodeRedemptionController {
 
     private final IPromoCodeRedemptionService service;
 
-    @PostMapping
-    public ResponseEntity<PromoCodeRedemption> create(@RequestBody PromoCodeRedemption entity) {
-        return ResponseEntity.ok(service.create(entity));
-    }
-
+    /** GET /api/promo-code-redemptions/{id} */
     @GetMapping("/{id}")
-    public ResponseEntity<PromoCodeRedemption> getById(@PathVariable UUID id) {
+    public ResponseEntity<PromoCodeRedemptionResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
+    /** GET /api/promo-code-redemptions — list all (ADMIN). */
     @GetMapping
-    public ResponseEntity<List<PromoCodeRedemption>> getAll() {
+    public ResponseEntity<List<PromoCodeRedemptionResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<PromoCodeRedemption> update(@PathVariable UUID id, @RequestBody PromoCodeRedemption entity) {
-        return ResponseEntity.ok(service.update(id, entity));
+    /** GET /api/promo-code-redemptions/by-user/{userId} — list a user's redemption history. */
+    @GetMapping("/by-user/{userId}")
+    public ResponseEntity<List<PromoCodeRedemptionResponse>> getByUserId(@PathVariable UUID userId) {
+        return ResponseEntity.ok(service.getByUserId(userId));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
+    /** GET /api/promo-code-redemptions/by-order/{orderId} — get redemption for a specific order. */
+    @GetMapping("/by-order/{orderId}")
+    public ResponseEntity<List<PromoCodeRedemptionResponse>> getByOrderId(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(service.getByOrderId(orderId));
     }
 }

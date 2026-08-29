@@ -1,13 +1,15 @@
 package com.resapori.e_commerce.service;
 
-import com.resapori.e_commerce.southbound.entity.MenuCategory;
+import com.resapori.e_commerce.northbound.dto.menu.MenuCategoryRequest;
+import com.resapori.e_commerce.northbound.dto.menu.MenuCategoryResponse;
+
 import java.util.List;
 import java.util.UUID;
 
 public interface IMenuCategoryService {
-    MenuCategory create(MenuCategory entity);
-    MenuCategory getById(UUID id);
-    List<MenuCategory> getAll();
-    MenuCategory update(UUID id, MenuCategory entity);
+    MenuCategoryResponse create(MenuCategoryRequest request);
+    MenuCategoryResponse getById(UUID id);
+    List<MenuCategoryResponse> getAll();
+    MenuCategoryResponse update(UUID id, MenuCategoryRequest request);
     void delete(UUID id);
 }

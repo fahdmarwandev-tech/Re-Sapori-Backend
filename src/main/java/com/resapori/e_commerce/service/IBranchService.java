@@ -1,13 +1,15 @@
 package com.resapori.e_commerce.service;
 
-import com.resapori.e_commerce.southbound.entity.Branch;
+import com.resapori.e_commerce.northbound.dto.branch.BranchRequest;
+import com.resapori.e_commerce.northbound.dto.branch.BranchResponse;
+
 import java.util.List;
 import java.util.UUID;
 
 public interface IBranchService {
-    Branch create(Branch entity);
-    Branch getById(UUID id);
-    List<Branch> getAll();
-    Branch update(UUID id, Branch entity);
+    BranchResponse create(BranchRequest request);
+    BranchResponse getById(UUID id);
+    List<BranchResponse> getAll();
+    BranchResponse update(UUID id, BranchRequest request);
     void delete(UUID id);
 }

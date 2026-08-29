@@ -1,9 +1,8 @@
 package com.resapori.e_commerce.northbound.controllers;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.payment.PaymentResponse;
 import com.resapori.e_commerce.service.IPaymentService;
-import com.resapori.e_commerce.southbound.entity.Payment;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,29 +16,21 @@ public class PaymentController {
 
     private final IPaymentService service;
 
-    @PostMapping
-    public ResponseEntity<Payment> create(@RequestBody Payment entity) {
-        return ResponseEntity.ok(service.create(entity));
-    }
-
+    /** GET /api/payments/{id} — get a payment record by ID (ADMIN). */
     @GetMapping("/{id}")
-    public ResponseEntity<Payment> getById(@PathVariable UUID id) {
+    public ResponseEntity<PaymentResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
+    /** GET /api/payments — list all payment records (ADMIN). */
     @GetMapping
-    public ResponseEntity<List<Payment>> getAll() {
+    public ResponseEntity<List<PaymentResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Payment> update(@PathVariable UUID id, @RequestBody Payment entity) {
-        return ResponseEntity.ok(service.update(id, entity));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
+    /** GET /api/payments/by-order/{orderId} — get payment history for an order (ADMIN). */
+    @GetMapping("/by-order/{orderId}")
+    public ResponseEntity<List<PaymentResponse>> getByOrderId(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(service.getByOrderId(orderId));
     }
 }

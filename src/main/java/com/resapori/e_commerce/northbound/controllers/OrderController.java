@@ -1,9 +1,11 @@
 package com.resapori.e_commerce.northbound.controllers;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.order.OrderResponse;
+import com.resapori.e_commerce.northbound.dto.order.PlaceOrderRequest;
+import com.resapori.e_commerce.northbound.dto.order.UpdateOrderStatusRequest;
 import com.resapori.e_commerce.service.IOrderService;
-import com.resapori.e_commerce.southbound.entity.Order;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,29 +19,29 @@ public class OrderController {
 
     private final IOrderService service;
 
+    /** POST /api/orders — place a new order. */
     @PostMapping
-    public ResponseEntity<Order> create(@RequestBody Order entity) {
-        return ResponseEntity.ok(service.create(entity));
+    public ResponseEntity<OrderResponse> placeOrder(@RequestBody PlaceOrderRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.placeOrder(request));
     }
 
+    /** GET /api/orders/{id} — get order details. */
     @GetMapping("/{id}")
-    public ResponseEntity<Order> getById(@PathVariable UUID id) {
+    public ResponseEntity<OrderResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
+    /** GET /api/orders — list all orders (ADMIN / CASHIER). */
     @GetMapping
-    public ResponseEntity<List<Order>> getAll() {
+    public ResponseEntity<List<OrderResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Order> update(@PathVariable UUID id, @RequestBody Order entity) {
-        return ResponseEntity.ok(service.update(id, entity));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
+    /** PATCH /api/orders/{id}/status — update order status (ADMIN / CASHIER). */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<OrderResponse> updateStatus(
+            @PathVariable UUID id,
+            @RequestBody UpdateOrderStatusRequest request) {
+        return ResponseEntity.ok(service.updateStatus(id, request));
     }
 }

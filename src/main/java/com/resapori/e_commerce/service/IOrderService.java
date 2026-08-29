@@ -1,13 +1,16 @@
 package com.resapori.e_commerce.service;
 
-import com.resapori.e_commerce.southbound.entity.Order;
+import com.resapori.e_commerce.northbound.dto.order.OrderResponse;
+import com.resapori.e_commerce.northbound.dto.order.PlaceOrderRequest;
+import com.resapori.e_commerce.northbound.dto.order.UpdateOrderStatusRequest;
+
 import java.util.List;
 import java.util.UUID;
 
 public interface IOrderService {
-    Order create(Order entity);
-    Order getById(UUID id);
-    List<Order> getAll();
-    Order update(UUID id, Order entity);
+    OrderResponse placeOrder(PlaceOrderRequest request);
+    OrderResponse getById(UUID id);
+    List<OrderResponse> getAll();
+    OrderResponse updateStatus(UUID id, UpdateOrderStatusRequest request);
     void delete(UUID id);
 }

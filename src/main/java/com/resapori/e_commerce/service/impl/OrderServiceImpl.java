@@ -1,10 +1,11 @@
 package com.resapori.e_commerce.service.impl;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.order.OrderResponse;
+import com.resapori.e_commerce.northbound.dto.order.PlaceOrderRequest;
+import com.resapori.e_commerce.northbound.dto.order.UpdateOrderStatusRequest;
 import com.resapori.e_commerce.service.IOrderService;
-import com.resapori.e_commerce.southbound.entity.Order;
 import com.resapori.e_commerce.southbound.repository.IOrderRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,22 +18,22 @@ public class OrderServiceImpl implements IOrderService {
     private final IOrderRepository repository;
 
     @Override
-    public Order create(Order entity) {
+    public OrderResponse placeOrder(PlaceOrderRequest request) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public Order getById(UUID id) {
+    public OrderResponse getById(UUID id) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public List<Order> getAll() {
+    public List<OrderResponse> getAll() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public Order update(UUID id, Order entity) {
+    public OrderResponse updateStatus(UUID id, UpdateOrderStatusRequest request) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 

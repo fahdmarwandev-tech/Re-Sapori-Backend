@@ -1,10 +1,9 @@
 package com.resapori.e_commerce.service.impl;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.promo.PromoCodeRedemptionResponse;
 import com.resapori.e_commerce.service.IPromoCodeRedemptionService;
-import com.resapori.e_commerce.southbound.entity.PromoCodeRedemption;
 import com.resapori.e_commerce.southbound.repository.IPromoCodeRedemptionRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,27 +16,22 @@ public class PromoCodeRedemptionServiceImpl implements IPromoCodeRedemptionServi
     private final IPromoCodeRedemptionRepository repository;
 
     @Override
-    public PromoCodeRedemption create(PromoCodeRedemption entity) {
+    public PromoCodeRedemptionResponse getById(UUID id) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public PromoCodeRedemption getById(UUID id) {
+    public List<PromoCodeRedemptionResponse> getAll() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public List<PromoCodeRedemption> getAll() {
+    public List<PromoCodeRedemptionResponse> getByUserId(UUID userId) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public PromoCodeRedemption update(UUID id, PromoCodeRedemption entity) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public void delete(UUID id) {
+    public List<PromoCodeRedemptionResponse> getByOrderId(UUID orderId) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 }

@@ -1,9 +1,9 @@
 package com.resapori.e_commerce.northbound.controllers;
 
-
-import lombok.RequiredArgsConstructor;
+import com.resapori.e_commerce.northbound.dto.order.OrderItemRequest;
+import com.resapori.e_commerce.northbound.dto.order.OrderItemResponse;
 import com.resapori.e_commerce.service.IOrderItemService;
-import com.resapori.e_commerce.southbound.entity.OrderItem;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,29 +17,13 @@ public class OrderItemController {
 
     private final IOrderItemService service;
 
-    @PostMapping
-    public ResponseEntity<OrderItem> create(@RequestBody OrderItem entity) {
-        return ResponseEntity.ok(service.create(entity));
-    }
-
     @GetMapping("/{id}")
-    public ResponseEntity<OrderItem> getById(@PathVariable UUID id) {
+    public ResponseEntity<OrderItemResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderItem>> getAll() {
+    public ResponseEntity<List<OrderItemResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<OrderItem> update(@PathVariable UUID id, @RequestBody OrderItem entity) {
-        return ResponseEntity.ok(service.update(id, entity));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
-        return ResponseEntity.noContent().build();
     }
 }

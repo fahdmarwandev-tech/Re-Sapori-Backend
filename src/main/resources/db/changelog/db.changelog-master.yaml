@@ -41,3 +41,5 @@ databaseChangeLog:
       file: db/changelog/changes/20-alter-users-add-address.sql
   - include:
       file: db/changelog/changes/21-create-user-addresses.sql
+  - include:
+      file: db/changelog/changes/22-seed-roles.sql

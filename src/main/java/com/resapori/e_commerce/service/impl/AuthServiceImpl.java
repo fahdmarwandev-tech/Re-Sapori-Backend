@@ -8,8 +8,10 @@ import com.resapori.e_commerce.northbound.dto.auth.RefreshTokenRequest;
 import com.resapori.e_commerce.northbound.dto.auth.RegisterRequest;
 import com.resapori.e_commerce.service.IAuthService;
 import com.resapori.e_commerce.southbound.entity.RefreshToken;
+import com.resapori.e_commerce.southbound.entity.Role;
 import com.resapori.e_commerce.southbound.entity.User;
 import com.resapori.e_commerce.southbound.repository.IRefreshTokenRepository;
+import com.resapori.e_commerce.southbound.repository.IRoleRepository;
 import com.resapori.e_commerce.southbound.repository.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -29,6 +32,7 @@ public class AuthServiceImpl implements IAuthService {
 
     private final IUserRepository userRepository;
     private final IRefreshTokenRepository refreshTokenRepository;
+    private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
@@ -39,13 +43,8 @@ public class AuthServiceImpl implements IAuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists with this email");
         }
 
-        User user = new User();
-        String[] nameParts = request.getName() != null ? request.getName().split(" ", 2) : new String[]{"", ""};
-        user.setFirstName(nameParts[0]);
-        user.setLastName(nameParts.length > 1 ? nameParts[1] : "");
-        user.setEmail(request.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        
+        Role customerRole = resolveCustomerRole();
+        User user = buildUser(request, customerRole);
         userRepository.save(user);
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
@@ -61,18 +60,14 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-        CustomUserDetails userDetails = new CustomUserDetails(user);
-        
-        String jwtToken = jwtService.generateToken(userDetails);
-        
+
+        String jwtToken = jwtService.generateToken(new CustomUserDetails(user));
+
         refreshTokenRepository.deleteByUser(user);
         RefreshToken refreshToken = createRefreshToken(user);
 
@@ -85,17 +80,14 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AuthResponse refresh(RefreshTokenRequest request) {
         Optional<RefreshToken> tokenOpt = refreshTokenRepository.findByToken(request.getRefreshToken());
-        
+
         if (tokenOpt.isEmpty() || tokenOpt.get().getExpiryDate().isBefore(LocalDateTime.now())) {
             tokenOpt.ifPresent(refreshTokenRepository::delete);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired");
         }
 
         RefreshToken refreshToken = tokenOpt.get();
-        User user = refreshToken.getUser();
-        CustomUserDetails userDetails = new CustomUserDetails(user);
-        
-        String jwtToken = jwtService.generateToken(userDetails);
+        String jwtToken = jwtService.generateToken(new CustomUserDetails(refreshToken.getUser()));
 
         return AuthResponse.builder()
                 .accessToken(jwtToken)
@@ -105,8 +97,32 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     public void logout(RefreshTokenRequest request) {
-        Optional<RefreshToken> tokenOpt = refreshTokenRepository.findByToken(request.getRefreshToken());
-        tokenOpt.ifPresent(refreshTokenRepository::delete);
+        refreshTokenRepository.findByToken(request.getRefreshToken())
+                .ifPresent(refreshTokenRepository::delete);
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private Role resolveCustomerRole() {
+        return roleRepository.findByName("CUSTOMER")
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, "CUSTOMER role not seeded in database"));
+    }
+
+    private User buildUser(RegisterRequest request, Role customerRole) {
+        String[] nameParts = request.getName() != null
+                ? request.getName().split(" ", 2)
+                : new String[]{"", ""};
+
+        User user = new User();
+        user.setFirstName(nameParts[0]);
+        user.setLastName(nameParts.length > 1 ? nameParts[1] : "");
+        user.setEmail(request.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRoles(Set.of(customerRole));
+        return user;
     }
 
     private RefreshToken createRefreshToken(User user) {
