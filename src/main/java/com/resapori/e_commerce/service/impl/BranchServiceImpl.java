@@ -26,7 +26,7 @@ public class BranchServiceImpl implements IBranchService {
     @Transactional
     public BranchResponse create(BranchRequest request) {
         Branch entity = mapper.toEntity(request);
-        entity = repository.save(entity);
+        entity = repository.saveAndFlush(entity);
         return mapper.toResponse(entity);
     }
 

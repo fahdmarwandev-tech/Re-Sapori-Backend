@@ -82,7 +82,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
         entity.setDescriptionAr(request.getDescriptionAr());
         entity.setCurrentPrice(request.getCurrentPrice());
         entity.setImageUrl(request.getImageUrl());
-        entity.setAvailable(request.isAvailable());
+        entity.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
         entity.setStock(request.getStock());
         
         return mapper.toResponse(repository.save(entity));

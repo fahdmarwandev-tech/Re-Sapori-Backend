@@ -21,7 +21,7 @@ public class MenuItemResponse {
     private String descriptionAr;
     private BigDecimal currentPrice;
     private String imageUrl;
-    private boolean isAvailable;
+    private Boolean available;
     private Integer stock;
-    private boolean isActive;
+    private Boolean active;
 }

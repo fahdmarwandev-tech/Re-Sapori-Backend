@@ -15,6 +15,8 @@ public interface MenuItemMapper {
 
     @Mapping(source = "category.id", target = "categoryId")
     @Mapping(source = "category.nameEn", target = "categoryNameEn")
+    @Mapping(source = "available", target = "available")
+    @Mapping(source = "active", target = "active")
     MenuItemResponse toResponse(MenuItem entity);
 
     List<MenuItemResponse> toResponseList(List<MenuItem> entities);

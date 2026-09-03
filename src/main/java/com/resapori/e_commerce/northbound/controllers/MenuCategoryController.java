@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class MenuCategoryController {
 
     private final IMenuCategoryService service;
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<MenuCategoryResponse> create(@RequestBody @Valid MenuCategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
@@ -34,11 +36,13 @@ public class MenuCategoryController {
         return ResponseEntity.ok(service.getAll());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<MenuCategoryResponse> update(@PathVariable UUID id, @RequestBody @Valid MenuCategoryRequest request) {
         return ResponseEntity.ok(service.update(id, request));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

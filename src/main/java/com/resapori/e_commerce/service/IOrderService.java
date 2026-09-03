@@ -11,6 +11,7 @@ public interface IOrderService {
     OrderResponse placeOrder(PlaceOrderRequest request);
     OrderResponse getById(UUID id);
     List<OrderResponse> getAll();
+    List<OrderResponse> getMyOrders();
     OrderResponse updateStatus(UUID id, UpdateOrderStatusRequest request);
     void delete(UUID id);
 }

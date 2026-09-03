@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,10 +20,12 @@ public class BranchController {
 
     private final IBranchService service;
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<BranchResponse> create(@RequestBody @Valid BranchRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<BranchResponse> getById(@PathVariable UUID id) {
@@ -34,11 +37,13 @@ public class BranchController {
         return ResponseEntity.ok(service.getAll());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<BranchResponse> update(@PathVariable UUID id, @RequestBody @Valid BranchRequest request) {
         return ResponseEntity.ok(service.update(id, request));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

@@ -19,6 +19,11 @@ public class ExceptionHandlers {
         return buildResponseEntity(exc, HttpStatus.valueOf(exc.getStatusCode().value()));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exc) {
+        return buildResponseEntity(exc, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception exc) {
         return buildResponseEntity(exc, HttpStatus.BAD_REQUEST);
