@@ -33,8 +33,9 @@ public class BranchController {
     }
 
     @GetMapping
-    public ResponseEntity<List<BranchResponse>> getAll() {
-        return ResponseEntity.ok(service.getAll());
+    public ResponseEntity<List<BranchResponse>> getAll(
+            @RequestParam(required = false, defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(service.getAll(includeInactive));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

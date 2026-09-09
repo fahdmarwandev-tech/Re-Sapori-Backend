@@ -43,10 +43,16 @@ public class BranchServiceImpl implements IBranchService {
     @Override
     @Transactional(readOnly = true)
     public List<BranchResponse> getAll() {
-        return repository.findAll().stream()
-                .filter(Branch::isActive)
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+        return getAll(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BranchResponse> getAll(boolean includeInactive) {
+        List<Branch> branches = includeInactive
+                ? repository.findAll()
+                : repository.findByIsActiveTrue();
+        return mapper.toResponseList(branches);
     }
 
     @Override
@@ -56,6 +62,9 @@ public class BranchServiceImpl implements IBranchService {
         entity.setName(request.getName());
         entity.setAddress(request.getAddress());
         entity.setPhoneNumber(request.getPhoneNumber());
+        if (request.getIsActive() != null) {
+            entity.setActive(request.getIsActive());
+        }
         return mapper.toResponse(repository.save(entity));
     }
 

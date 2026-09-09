@@ -33,6 +33,7 @@ public class AddressResponse {
 
     private BigDecimal lng;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("isDefault")
     private boolean isDefault;
 
     private LocalDateTime createdAt;

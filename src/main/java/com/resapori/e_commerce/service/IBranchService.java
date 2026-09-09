@@ -10,6 +10,7 @@ public interface IBranchService {
     BranchResponse create(BranchRequest request);
     BranchResponse getById(UUID id);
     List<BranchResponse> getAll();
+    List<BranchResponse> getAll(boolean includeInactive);
     BranchResponse update(UUID id, BranchRequest request);
     void delete(UUID id);
 }

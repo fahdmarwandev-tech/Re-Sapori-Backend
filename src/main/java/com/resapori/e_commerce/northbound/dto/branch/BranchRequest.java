@@ -15,4 +15,5 @@ public class BranchRequest {
     private String name;
     private String address;
     private String phoneNumber;
+    private Boolean isActive;
 }

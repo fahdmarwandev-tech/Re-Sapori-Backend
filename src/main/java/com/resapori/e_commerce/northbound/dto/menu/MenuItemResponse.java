@@ -1,6 +1,7 @@
 package com.resapori.e_commerce.northbound.dto.menu;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,8 +21,10 @@ public class MenuItemResponse {
     private String descriptionEn;
     private String descriptionAr;
     private BigDecimal currentPrice;
+    private BigDecimal miniPrice;
     private String imageUrl;
     private Boolean available;
     private Integer stock;
     private Boolean active;
+    private List<MenuAddOnResponse> addOns;
 }

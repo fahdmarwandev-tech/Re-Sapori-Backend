@@ -1,9 +1,10 @@
 package com.resapori.e_commerce.northbound.dto.menu;
 
-import com.resapori.e_commerce.common.validation.CloudinaryUrl;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,9 +25,11 @@ public class MenuItemRequest {
     private String descriptionAr;
     @NotNull(message = "Current price is required")
     private BigDecimal currentPrice;
-    @CloudinaryUrl
+    private BigDecimal miniPrice;
     private String imageUrl;
     @Builder.Default
     private Boolean available = true;
     private Integer stock;
+    @Valid
+    private List<MenuAddOnRequest> addOns;
 }

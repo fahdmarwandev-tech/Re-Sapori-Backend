@@ -15,5 +15,7 @@ public class MenuCategoryResponse {
     private String nameEn;
     private String nameAr;
     private Integer displayOrder;
+    private String subtitleEn;
+    private String subtitleAr;
     private boolean isActive;
 }

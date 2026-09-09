@@ -1,5 +1,6 @@
 package com.resapori.e_commerce.northbound.dto.order;
 
+import com.resapori.e_commerce.southbound.enums.ItemSize;
 import java.math.BigDecimal;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,7 @@ public class OrderItemResponse {
     private String nameEn;
     private String nameAr;
     private int quantity;
+    private ItemSize size;
     private BigDecimal unitPriceAtPurchase;
     private BigDecimal lineTotal;
 }

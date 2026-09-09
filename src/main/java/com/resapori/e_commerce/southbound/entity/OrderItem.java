@@ -7,11 +7,14 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import com.resapori.e_commerce.southbound.enums.ItemSize;
 
 @Getter
 @Setter
@@ -31,6 +34,10 @@ public class OrderItem extends BaseEntity {
 
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "size", nullable = false)
+    private ItemSize size = ItemSize.REGULAR;
 
     @Column(name = "unit_price_at_purchase", nullable = false)
     private BigDecimal unitPriceAtPurchase;

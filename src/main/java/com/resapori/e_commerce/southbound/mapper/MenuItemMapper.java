@@ -4,20 +4,29 @@ import com.resapori.e_commerce.northbound.dto.menu.MenuItemRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuItemResponse;
 import com.resapori.e_commerce.southbound.entity.MenuItem;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.Builder;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
-public interface MenuItemMapper {
+public abstract class MenuItemMapper {
+
+    @Autowired
+    protected MenuAddOnMapper menuAddOnMapper;
 
     @Mapping(target = "category", ignore = true)
-    MenuItem toEntity(MenuItemRequest request);
+    @Mapping(target = "addOns", ignore = true)
+    public abstract MenuItem toEntity(MenuItemRequest request);
 
+    @BeanMapping(builder = @Builder(disableBuilder = true))
     @Mapping(source = "category.id", target = "categoryId")
     @Mapping(source = "category.nameEn", target = "categoryNameEn")
     @Mapping(source = "available", target = "available")
     @Mapping(source = "active", target = "active")
-    MenuItemResponse toResponse(MenuItem entity);
+    @Mapping(target = "addOns", expression = "java(menuAddOnMapper.toResponseList(entity.getAddOns()))")
+    public abstract MenuItemResponse toResponse(MenuItem entity);
 
-    List<MenuItemResponse> toResponseList(List<MenuItem> entities);
+    public abstract List<MenuItemResponse> toResponseList(List<MenuItem> entities);
 }

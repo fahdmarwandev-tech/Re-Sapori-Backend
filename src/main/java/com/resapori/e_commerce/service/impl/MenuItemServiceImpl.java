@@ -1,11 +1,14 @@
 package com.resapori.e_commerce.service.impl;
 
 import com.resapori.e_commerce.common.exception.ResourceNotFoundException;
+import com.resapori.e_commerce.northbound.dto.menu.MenuAddOnRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuItemRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuItemResponse;
 import com.resapori.e_commerce.service.IMenuItemService;
+import com.resapori.e_commerce.southbound.entity.MenuAddOn;
 import com.resapori.e_commerce.southbound.entity.MenuCategory;
 import com.resapori.e_commerce.southbound.entity.MenuItem;
+import com.resapori.e_commerce.southbound.mapper.MenuAddOnMapper;
 import com.resapori.e_commerce.southbound.mapper.MenuItemMapper;
 import com.resapori.e_commerce.southbound.repository.IMenuCategoryRepository;
 import com.resapori.e_commerce.southbound.repository.IMenuItemRepository;
@@ -15,9 +18,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -26,6 +29,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
     private final IMenuItemRepository repository;
     private final IMenuCategoryRepository categoryRepository;
     private final MenuItemMapper mapper;
+    private final MenuAddOnMapper addOnMapper;
 
     @Override
     @Transactional
@@ -33,6 +37,13 @@ public class MenuItemServiceImpl implements IMenuItemService {
         MenuCategory category = findCategoryOrThrow(request.getCategoryId());
         MenuItem entity = mapper.toEntity(request);
         entity.setCategory(category);
+
+        // Map addOns and wire back the menuItem reference
+        if (request.getAddOns() != null && !request.getAddOns().isEmpty()) {
+            List<MenuAddOn> addOns = mapAddOns(request.getAddOns(), entity);
+            entity.getAddOns().addAll(addOns);
+        }
+
         entity = repository.save(entity);
         return mapper.toResponse(entity);
     }
@@ -40,33 +51,27 @@ public class MenuItemServiceImpl implements IMenuItemService {
     @Override
     @Transactional(readOnly = true)
     public MenuItemResponse getById(UUID id) {
-        MenuItem item = findByIdOrThrow(id);
-        if (!item.isActive()) {
-            throw new ResourceNotFoundException("MenuItem not found with id: " + id);
-        }
+        MenuItem item = repository.findActiveById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found with id: " + id));
         return mapper.toResponse(item);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MenuItemResponse> getAll() {
-        boolean isAdmin = isAdmin();
-        return repository.findAll().stream()
-                .filter(MenuItem::isActive)
-                .filter(item -> isAdmin || item.isAvailable())
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+        List<MenuItem> items = isAdmin()
+                ? repository.findAllActive()
+                : repository.findAllActiveAndAvailable();
+        return mapper.toResponseList(items);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MenuItemResponse> getByCategory(UUID categoryId) {
-        boolean isAdmin = isAdmin();
-        return repository.findByCategoryId(categoryId).stream()
-                .filter(MenuItem::isActive)
-                .filter(item -> isAdmin || item.isAvailable())
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+        List<MenuItem> items = isAdmin()
+                ? repository.findActiveByCategoryId(categoryId)
+                : repository.findActiveAndAvailableByCategoryId(categoryId);
+        return mapper.toResponseList(items);
     }
 
     @Override
@@ -74,17 +79,25 @@ public class MenuItemServiceImpl implements IMenuItemService {
     public MenuItemResponse update(UUID id, MenuItemRequest request) {
         MenuItem entity = findByIdOrThrow(id);
         MenuCategory category = findCategoryOrThrow(request.getCategoryId());
-        
+
         entity.setCategory(category);
         entity.setNameEn(request.getNameEn());
         entity.setNameAr(request.getNameAr());
         entity.setDescriptionEn(request.getDescriptionEn());
         entity.setDescriptionAr(request.getDescriptionAr());
         entity.setCurrentPrice(request.getCurrentPrice());
+        entity.setMiniPrice(request.getMiniPrice());
         entity.setImageUrl(request.getImageUrl());
         entity.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
         entity.setStock(request.getStock());
-        
+
+        // Replace addOns collection in-place (orphanRemoval will delete old ones)
+        entity.getAddOns().clear();
+        if (request.getAddOns() != null && !request.getAddOns().isEmpty()) {
+            List<MenuAddOn> addOns = mapAddOns(request.getAddOns(), entity);
+            entity.getAddOns().addAll(addOns);
+        }
+
         return mapper.toResponse(repository.save(entity));
     }
 
@@ -94,6 +107,18 @@ public class MenuItemServiceImpl implements IMenuItemService {
         MenuItem entity = findByIdOrThrow(id);
         entity.setActive(false);
         repository.save(entity);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private List<MenuAddOn> mapAddOns(List<MenuAddOnRequest> requests, MenuItem owner) {
+        List<MenuAddOn> result = new ArrayList<>();
+        for (MenuAddOnRequest req : requests) {
+            MenuAddOn addOn = addOnMapper.toEntity(req);
+            addOn.setMenuItem(owner);
+            result.add(addOn);
+        }
+        return result;
     }
 
     private MenuItem findByIdOrThrow(UUID id) {

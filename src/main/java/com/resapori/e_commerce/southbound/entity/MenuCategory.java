@@ -26,4 +26,9 @@ public class MenuCategory extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
+    @Column(name = "subtitle_en")
+    private String subtitleEn;
+
+    @Column(name = "subtitle_ar")
+    private String subtitleAr;
 }

@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -43,15 +42,7 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
     @Override
     @Transactional(readOnly = true)
     public List<MenuCategoryResponse> getAll() {
-        return repository.findAll().stream()
-                .filter(MenuCategory::isActive)
-                .sorted((a, b) -> {
-                    Integer orderA = a.getDisplayOrder() != null ? a.getDisplayOrder() : Integer.MAX_VALUE;
-                    Integer orderB = b.getDisplayOrder() != null ? b.getDisplayOrder() : Integer.MAX_VALUE;
-                    return orderA.compareTo(orderB);
-                })
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+        return mapper.toResponseList(repository.findByIsActiveTrueOrderByDisplayOrderAsc());
     }
 
     @Override
@@ -61,6 +52,8 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
         entity.setNameEn(request.getNameEn());
         entity.setNameAr(request.getNameAr());
         entity.setDisplayOrder(request.getDisplayOrder());
+        entity.setSubtitleEn(request.getSubtitleEn());
+        entity.setSubtitleAr(request.getSubtitleAr());
         return mapper.toResponse(repository.save(entity));
     }
 

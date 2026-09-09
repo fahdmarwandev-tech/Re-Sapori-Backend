@@ -27,5 +27,9 @@ public class OrderResponse {
     private UUID branchId;
     private String branchName;
     private List<OrderItemResponse> items;
+    private UUID userId;
+    private String customerName;
+    private String customerEmail;
+    private String customerPhone;
     private LocalDateTime createdAt;
 }

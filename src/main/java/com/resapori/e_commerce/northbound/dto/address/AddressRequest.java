@@ -33,5 +33,6 @@ public class AddressRequest {
     private BigDecimal lng;
 
     /** When true, this address becomes the user's default delivery address. */
+    @com.fasterxml.jackson.annotation.JsonProperty("isDefault")
     private boolean isDefault;
 }

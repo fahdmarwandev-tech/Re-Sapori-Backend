@@ -4,8 +4,10 @@ import com.resapori.e_commerce.southbound.entity.Branch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface IBranchRepository extends JpaRepository<Branch, UUID> {
+    List<Branch> findByIsActiveTrue();
 }

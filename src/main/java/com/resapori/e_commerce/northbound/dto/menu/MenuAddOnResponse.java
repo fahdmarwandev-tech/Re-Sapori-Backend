@@ -1,20 +1,21 @@
 package com.resapori.e_commerce.northbound.dto.menu;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.util.UUID;
+
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class MenuCategoryRequest {
-    @NotBlank(message = "Name (EN) is required")
+public class MenuAddOnResponse {
+    private UUID id;
     private String nameEn;
     private String nameAr;
-    private Integer displayOrder;
-    private String subtitleEn;
-    private String subtitleAr;
+    private BigDecimal price;
+    private Boolean active;
 }

@@ -43,3 +43,15 @@ databaseChangeLog:
       file: db/changelog/changes/21-create-user-addresses.sql
   - include:
       file: db/changelog/changes/22-seed-roles.sql
+  - include:
+      file: db/changelog/changes/23-alter-menu-categories-subtitle.sql
+  - include:
+      file: db/changelog/changes/24-alter-menu-items-mini-price.sql
+  - include:
+      file: db/changelog/changes/25-create-menu-addons.sql
+  - include:
+      file: db/changelog/changes/26-alter-order-items-add-size.sql
+  - include:
+      file: db/changelog/changes/27-rename-order-status-enum.sql
+  - include:
+      file: db/changelog/changes/28-seed-menu-data.sql
