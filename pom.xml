@@ -139,7 +139,15 @@
 			<artifactId>cloudinary-http5</artifactId>
 			<version>2.2.0</version>
 		</dependency>
+
+		<!-- Caffeine — used by SseTokenStore for auto-expiring one-time SSE auth tokens.
+		     Already a transitive Spring Boot dependency; declared explicitly for clarity. -->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
 	</dependencies>
+
 
 	<build>
 		<plugins>

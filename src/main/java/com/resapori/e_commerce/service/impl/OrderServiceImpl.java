@@ -1,5 +1,7 @@
 package com.resapori.e_commerce.service.impl;
 
+import com.resapori.e_commerce.common.event.OrderEvent;
+import com.resapori.e_commerce.common.event.OrderEvent.EventType;
 import com.resapori.e_commerce.common.exception.ResourceNotFoundException;
 import com.resapori.e_commerce.common.security.AuthUtil;
 import com.resapori.e_commerce.northbound.dto.order.OrderItemInput;
@@ -16,6 +18,7 @@ import com.resapori.e_commerce.southbound.mapper.OrderItemMapper;
 import com.resapori.e_commerce.southbound.mapper.OrderMapper;
 import com.resapori.e_commerce.southbound.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,10 +42,12 @@ public class OrderServiceImpl implements IOrderService {
     private final IMenuItemRepository menuItemRepository;
     private final IBranchRepository branchRepository;
     private final IUserAddressRepository userAddressRepository;
-    
+
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final AuthUtil authUtil;
+    private final ApplicationEventPublisher eventPublisher;
+
 
     @Override
     @Transactional
@@ -57,8 +62,11 @@ public class OrderServiceImpl implements IOrderService {
         orderItems.forEach(item -> item.setOrder(savedOrder));
         orderItemRepository.saveAll(orderItems);
 
-        return mapToResponse(savedOrder, orderItems);
+        OrderResponse response = mapToResponse(savedOrder, orderItems);
+        eventPublisher.publishEvent(new OrderEvent(response, EventType.NEW_ORDER));
+        return response;
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -105,8 +113,11 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(request.getStatus());
         Order savedOrder = orderRepository.save(order);
         List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(savedOrder.getId());
-        return mapToResponse(savedOrder, items);
+        OrderResponse response = mapToResponse(savedOrder, items);
+        eventPublisher.publishEvent(new OrderEvent(response, EventType.ORDER_UPDATED));
+        return response;
     }
+
 
     @Override
     @Transactional

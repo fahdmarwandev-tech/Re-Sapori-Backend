@@ -38,3 +38,9 @@ cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
+
+# SSE — emitter timeout in milliseconds (5 minutes)
+# Must match the value passed to new SseEmitter(timeout) in SseEmitterRegistry
+sse:
+  emitter-timeout-ms: 300000
+

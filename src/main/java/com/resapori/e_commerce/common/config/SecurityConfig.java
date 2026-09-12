@@ -44,6 +44,9 @@ public class SecurityConfig {
     public static final String BRANCHES_ROOT = "/api/branches";
     public static final String BRANCHES_BASE = "/api/branches/**";
     public static final String UPLOAD_BASE = "/api/upload/**";
+    /** SSE stream — auth is performed via the one-time token query param, not JWT header. */
+    public static final String SSE_ORDERS = "/api/sse/orders";
+
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
@@ -87,7 +90,8 @@ public class SecurityConfig {
                                         WEBJARS,
                                         SWAGGER_RESOURCES,
                                         SWAGGER_HTML,
-                                        AUTH_BASE
+                                        AUTH_BASE,
+                                        SSE_ORDERS  // token-validated, not JWT — browsers can't set headers on EventSource
                                 ).permitAll()
                                 .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE).permitAll()
                                 .anyRequest().authenticated()
