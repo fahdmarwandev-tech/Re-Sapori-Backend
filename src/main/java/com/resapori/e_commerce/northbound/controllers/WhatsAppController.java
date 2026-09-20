@@ -31,12 +31,12 @@ public class WhatsAppController {
     public ResponseEntity<String> sendTemplate(
             @Parameter(description = "Recipient phone number (e.g., 01012345678, +201012345678, or international)", example = "01012345678")
             @RequestParam String phoneNumber,
-            
-            @Parameter(description = "Meta pre-approved template name", example = "testingtemplate")
-            @RequestParam(defaultValue = "testingtemplate", required = false) String templateName,
 
-            @Parameter(description = "Language code of the template", example = "en")
-            @RequestParam(defaultValue = "en", required = false) String languageCode) {
+            @Parameter(description = "Meta pre-approved template name", example = "review")
+            @RequestParam(defaultValue = "review", required = false) String templateName,
+
+            @Parameter(description = "Language code of the template", example = "ar_EG")
+            @RequestParam(defaultValue = "ar_EG ", required = false) String languageCode) {
 
         try {
             String response = whatsAppService.sendTemplate(phoneNumber, templateName, languageCode);

@@ -69,8 +69,8 @@ public class WhatsAppServiceImpl implements IWhatsAppService {
         }
 
         String formattedPhone = formatPhoneNumber(phoneNumber);
-        String selectedTemplate = (templateName != null && !templateName.isBlank()) ? templateName.trim() : "testingtemplate";
-        String selectedLanguage = (languageCode != null && !languageCode.isBlank()) ? languageCode.trim() : "en";
+        String selectedTemplate = (templateName != null && !templateName.isBlank()) ? templateName.trim() : "review";
+        String selectedLanguage = (languageCode != null && !languageCode.isBlank()) ? languageCode.trim() : "ar_EG";
 
         log.info("Dispatching WhatsApp template '{}' ({}) to '{}'", selectedTemplate, selectedLanguage, formattedPhone);
 
@@ -103,6 +103,6 @@ public class WhatsAppServiceImpl implements IWhatsAppService {
 
     @Override
     public String sendTemplate(String phoneNumber) {
-        return sendTemplate(phoneNumber, "testingtemplate", "en");
+        return sendTemplate(phoneNumber, "review", "ar_EG");
     }
 }
