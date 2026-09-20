@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resapori-backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    ports:
+      - "127.0.0.1:8080:8080"
+    # If using local docker DB instead of Supabase, uncomment below:
+    # depends_on:
+    #   - db
+
+  # Optional: only if you want Postgres running locally on the server instead of Supabase
+  # db:
+  #   image: postgres:latest
+  #   container_name: resapori-db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: ${DB_LOCAL_USERNAME}
+  #     POSTGRES_PASSWORD: ${DB_LOCAL_PASSWORD}
+  #     POSTGRES_DB: resaporidb
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data:
