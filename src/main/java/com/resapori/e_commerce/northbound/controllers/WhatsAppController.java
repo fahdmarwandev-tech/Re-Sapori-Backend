@@ -29,9 +29,9 @@ public class WhatsAppController {
             description = "Dispatches a pre-approved WhatsApp template message to the specified recipient via Meta Cloud API. Automatically formats Egyptian phone numbers."
     )
     public ResponseEntity<String> sendTemplate(
-            @Parameter(description = "Recipient phone number (e.g., 01122406458, +201122406458, or international)", example = "01122406458")
-            @RequestParam(defaultValue = "01122406458") String phoneNumber,
-
+            @Parameter(description = "Recipient phone number (e.g., 01012345678, +201012345678, or international)", example = "01012345678")
+            @RequestParam String phoneNumber,
+            
             @Parameter(description = "Meta pre-approved template name", example = "testingtemplate")
             @RequestParam(defaultValue = "testingtemplate", required = false) String templateName,
 
