@@ -46,7 +46,6 @@ public class SecurityConfig {
     public static final String UPLOAD_BASE = "/api/upload/**";
     /** SSE stream — auth is performed via the one-time token query param, not JWT header. */
     public static final String SSE_ORDERS = "/api/sse/orders";
-    public static final String WHATSAPP_BASE = "/api/whatsapp/**";
 
 
     private final JwtAuthFilter jwtAuthFilter;
@@ -92,8 +91,7 @@ public class SecurityConfig {
                                         SWAGGER_RESOURCES,
                                         SWAGGER_HTML,
                                         AUTH_BASE,
-                                        SSE_ORDERS,  // token-validated, not JWT — browsers can't set headers on EventSource
-                                        WHATSAPP_BASE
+                                        SSE_ORDERS  // token-validated, not JWT — browsers can't set headers on EventSource
                                 ).permitAll()
                                 .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE).permitAll()
                                 .anyRequest().authenticated()
