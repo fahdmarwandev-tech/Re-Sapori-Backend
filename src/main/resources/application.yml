@@ -44,3 +44,10 @@ cloudinary:
 sse:
   emitter-timeout-ms: 300000
 
+meta:
+  whatsapp:
+    phone-number-id: ${META_WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${META_WHATSAPP_ACCESS_TOKEN:}
+    api-url: ${META_WHATSAPP_API_URL:https://graph.facebook.com/v21.0}
+
+
