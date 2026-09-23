@@ -16,6 +16,12 @@ spring:
     username: ${DB_LOCAL_USERNAME}
     password: ${DB_LOCAL_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 60000
+      connection-timeout: 20000
 
   jpa:
     hibernate:
@@ -29,6 +35,20 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        debug: ${MAIL_DEBUG:false}
+
 logging:
   level:
     liquibase: DEBUG
@@ -38,9 +58,9 @@ jwt:
   secret: ${JWT_SECRET}
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME}
-  api-key: ${CLOUDINARY_API_KEY}
-  api-secret: ${CLOUDINARY_API_SECRET}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:demo}
+  api-key: ${CLOUDINARY_API_KEY:demo}
+  api-secret: ${CLOUDINARY_API_SECRET:demo}
 
 # SSE — emitter timeout in milliseconds (5 minutes)
 # Must match the value passed to new SseEmitter(timeout) in SseEmitterRegistry

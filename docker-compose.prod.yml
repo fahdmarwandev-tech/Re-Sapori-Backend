@@ -1,4 +1,22 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: resapori-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-resaporidb}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-resaporidb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -7,25 +25,11 @@ services:
     restart: always
     env_file:
       - .env
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
     ports:
-      - "127.0.0.1:8080:8080"
-    # If using local docker DB instead of Supabase, uncomment below:
-    # depends_on:
-    #   - db
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
 
-  # Optional: only if you want Postgres running locally on the server instead of Supabase
-  # db:
-  #   image: postgres:latest
-  #   container_name: resapori-db
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: ${DB_LOCAL_USERNAME}
-  #     POSTGRES_PASSWORD: ${DB_LOCAL_PASSWORD}
-  #     POSTGRES_DB: resaporidb
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-
-# volumes:
-#   postgres_data:
+volumes:
+  postgres_data:

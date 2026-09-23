@@ -7,11 +7,20 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.security.SecureRandom;
+
 @Component
 @RequiredArgsConstructor
 public class AuthUtil {
 
     private final IUserRepository userRepository;
+    private final SecureRandom random = new SecureRandom();
+
+    public String generateOtp(int length) {
+        int bound = (int) Math.pow(10, length);
+        int randomNumber = random.nextInt(bound);
+        return String.format("%0" + length + "d", randomNumber);
+    }
 
     public User getAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

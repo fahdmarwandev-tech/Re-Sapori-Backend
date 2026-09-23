@@ -55,3 +55,8 @@ databaseChangeLog:
       file: db/changelog/changes/27-rename-order-status-enum.sql
   - include:
       file: db/changelog/changes/28-seed-menu-data.sql
+  - include:
+      file: db/changelog/changes/29-create-user-otps.sql
+  - include:
+      file: db/changelog/changes/30-alter-user-otps-add-reset-token.sql
+

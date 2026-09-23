@@ -21,15 +21,15 @@ public class OrderController {
 
     private final IOrderService service;
 
-    /** POST /api/orders — place a new order. (CUSTOMER) */
-    @PreAuthorize("hasRole('CUSTOMER')")
+    /** POST /api/orders — place a new order. (CUSTOMER / ADMIN) */
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     @PostMapping
     public ResponseEntity<OrderResponse> placeOrder(@RequestBody @Valid PlaceOrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.placeOrder(request));
     }
 
-    /** GET /api/orders/my — get authenticated user's orders (CUSTOMER) */
-    @PreAuthorize("hasRole('CUSTOMER')")
+    /** GET /api/orders/my — get authenticated user's orders (CUSTOMER / ADMIN) */
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     @GetMapping("/my")
     public ResponseEntity<List<OrderResponse>> getMyOrders() {
         return ResponseEntity.ok(service.getMyOrders());
