@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 
 @Getter
 @Setter
@@ -26,4 +27,11 @@ public class Branch extends BaseEntity {
     @Column(name = "phone_number")
     private String phoneNumber;
 
+    /** Latitude — nullable, reserved for branch geo-location & delivery radius features. */
+    @Column(name = "lat", precision = 10, scale = 7)
+    private BigDecimal lat;
+
+    /** Longitude — nullable, reserved for branch geo-location & delivery radius features. */
+    @Column(name = "lng", precision = 10, scale = 7)
+    private BigDecimal lng;
 }

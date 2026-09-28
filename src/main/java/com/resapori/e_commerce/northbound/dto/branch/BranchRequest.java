@@ -1,5 +1,6 @@
 package com.resapori.e_commerce.northbound.dto.branch;
 
+import java.math.BigDecimal;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,4 +17,6 @@ public class BranchRequest {
     private String address;
     private String phoneNumber;
     private Boolean isActive;
+    private BigDecimal lat;
+    private BigDecimal lng;
 }

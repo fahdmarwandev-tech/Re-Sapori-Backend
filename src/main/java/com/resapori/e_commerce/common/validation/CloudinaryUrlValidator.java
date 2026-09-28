@@ -10,7 +10,7 @@ public class CloudinaryUrlValidator implements ConstraintValidator<CloudinaryUrl
 
     private static final String CLOUDINARY_BASE = "https://res.cloudinary.com/";
 
-    @Value("${cloudinary.cloud-name}")
+    @Value("${cloudinary.cloud-name:}")
     private String cloudName;
 
     @Override

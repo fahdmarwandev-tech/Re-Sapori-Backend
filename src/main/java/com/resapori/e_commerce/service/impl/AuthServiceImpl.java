@@ -13,6 +13,7 @@ import com.resapori.e_commerce.northbound.dto.auth.VerifyOtpRequest;
 import com.resapori.e_commerce.northbound.dto.auth.VerifyOtpResponse;
 import com.resapori.e_commerce.service.IAuthService;
 import com.resapori.e_commerce.service.IEmailService;
+import com.resapori.e_commerce.service.IEmailTemplateService;
 import com.resapori.e_commerce.southbound.entity.RefreshToken;
 import com.resapori.e_commerce.southbound.entity.Role;
 import com.resapori.e_commerce.southbound.entity.User;
@@ -50,6 +51,7 @@ public class AuthServiceImpl implements IAuthService {
     private final IRoleRepository roleRepository;
     private final IUserOtpRepository userOtpRepository;
     private final IEmailService emailService;
+    private final IEmailTemplateService emailTemplateService;
     private final AuthUtil authUtil;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -176,11 +178,9 @@ public class AuthServiceImpl implements IAuthService {
                 .build();
         userOtpRepository.save(userOtp);
 
-        // 5. Dispatch email
-        String body = "Hello,\n\nYour OTP code for password reset is: " + otp
-                + "\n\nThis code will expire in " + OTP_EXPIRATION_MINUTES + " minutes."
-                + "\n\nIf you did not request a password reset, please ignore this email.";
-        emailService.sendEmail(email, OTP_SUBJECT, body);
+        // 5. Dispatch styled HTML email
+        String htmlBody = emailTemplateService.buildOtpEmail(otp, OTP_EXPIRATION_MINUTES);
+        emailService.sendHtmlEmail(email, OTP_SUBJECT, htmlBody);
 
         return Map.of("message", "OTP has been sent to your email");
     }

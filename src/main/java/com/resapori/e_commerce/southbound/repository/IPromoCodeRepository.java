@@ -31,6 +31,10 @@ public interface IPromoCodeRepository extends JpaRepository<PromoCode, UUID> {
      */
     Optional<PromoCode> findByCodeAndIsActiveTrue(String code);
 
+    Optional<PromoCode> findByCodeIgnoreCaseAndIsActiveTrue(String code);
+
+    boolean existsByCodeIgnoreCase(String code);
+
     /**
      * Atomically increments {@code current_uses} by 1 for the given promo code.
      * Must be called inside a transaction after all eligibility checks have passed.

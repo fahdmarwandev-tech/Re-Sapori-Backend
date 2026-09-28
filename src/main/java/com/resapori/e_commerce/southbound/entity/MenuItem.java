@@ -44,6 +44,12 @@ public class MenuItem extends BaseEntity {
     @Column(name = "current_price", nullable = false)
     private BigDecimal currentPrice;
 
+    @Column(name = "original_price")
+    private BigDecimal originalPrice;
+
+    @Column(name = "discount_price")
+    private BigDecimal discountPrice;
+
     @Column(name = "mini_price")
     private BigDecimal miniPrice;
 

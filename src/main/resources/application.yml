@@ -57,7 +57,13 @@ logging:
 jwt:
   secret: ${JWT_SECRET}
 
+app:
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+    base-url: ${UPLOAD_BASE_URL:/uploads}
+
 cloudinary:
+  enabled: ${CLOUDINARY_ENABLED:false}
   cloud-name: ${CLOUDINARY_CLOUD_NAME:demo}
   api-key: ${CLOUDINARY_API_KEY:demo}
   api-secret: ${CLOUDINARY_API_SECRET:demo}

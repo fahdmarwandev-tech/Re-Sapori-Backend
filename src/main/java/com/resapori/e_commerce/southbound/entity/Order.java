@@ -52,6 +52,9 @@ public class Order extends BaseEntity {
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount;
 
+    @Column(name = "delivery_fee", precision = 10, scale = 2, nullable = false)
+    private BigDecimal deliveryFee = BigDecimal.ZERO;
+
     @Column(name = "currency", length = 3, nullable = false)
     private String currency = "EGP";
 

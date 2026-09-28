@@ -78,27 +78,35 @@ public class MenuItemServiceImpl implements IMenuItemService {
     @Transactional
     public MenuItemResponse update(UUID id, MenuItemRequest request) {
         MenuItem entity = findByIdOrThrow(id);
-        MenuCategory category = findCategoryOrThrow(request.getCategoryId());
-
-        entity.setCategory(category);
-        entity.setNameEn(request.getNameEn());
-        entity.setNameAr(request.getNameAr());
-        entity.setDescriptionEn(request.getDescriptionEn());
-        entity.setDescriptionAr(request.getDescriptionAr());
-        entity.setCurrentPrice(request.getCurrentPrice());
-        entity.setMiniPrice(request.getMiniPrice());
-        entity.setImageUrl(request.getImageUrl());
-        entity.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
-        entity.setStock(request.getStock());
-
-        // Replace addOns collection in-place (orphanRemoval will delete old ones)
-        entity.getAddOns().clear();
-        if (request.getAddOns() != null && !request.getAddOns().isEmpty()) {
-            List<MenuAddOn> addOns = mapAddOns(request.getAddOns(), entity);
-            entity.getAddOns().addAll(addOns);
-        }
-
+        applyBasicFields(entity, request);
+        applyPriceAndFlags(entity, request);
+        applyCategorization(entity, request);
         return mapper.toResponse(repository.save(entity));
+    }
+
+    private void applyBasicFields(MenuItem entity, MenuItemRequest req) {
+        entity.setNameEn(req.getNameEn());
+        entity.setNameAr(req.getNameAr());
+        entity.setDescriptionEn(req.getDescriptionEn());
+        entity.setDescriptionAr(req.getDescriptionAr());
+        entity.setImageUrl(req.getImageUrl());
+    }
+
+    private void applyPriceAndFlags(MenuItem entity, MenuItemRequest req) {
+        entity.setCurrentPrice(req.getCurrentPrice());
+        entity.setOriginalPrice(req.getOriginalPrice());
+        entity.setDiscountPrice(req.getDiscountPrice());
+        entity.setMiniPrice(req.getMiniPrice());
+        entity.setAvailable(Boolean.TRUE.equals(req.getAvailable()));
+        entity.setStock(req.getStock());
+    }
+
+    private void applyCategorization(MenuItem entity, MenuItemRequest req) {
+        entity.setCategory(findCategoryOrThrow(req.getCategoryId()));
+        entity.getAddOns().clear();
+        if (req.getAddOns() != null && !req.getAddOns().isEmpty()) {
+            entity.getAddOns().addAll(mapAddOns(req.getAddOns(), entity));
+        }
     }
 
     @Override

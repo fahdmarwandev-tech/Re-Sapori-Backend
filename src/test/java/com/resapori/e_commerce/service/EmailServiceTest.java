@@ -16,8 +16,7 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class EmailServiceTest {
@@ -50,5 +49,20 @@ class EmailServiceTest {
         assertArrayEquals(new String[]{to}, Objects.requireNonNull(capturedMessage.getTo()));
         assertEquals(subject, capturedMessage.getSubject());
         assertEquals(body, capturedMessage.getText());
+    }
+
+    @Test
+    @DisplayName("Should create and send MimeMessage for HTML email")
+    void shouldSendHtmlEmailSuccessfully() {
+        jakarta.mail.internet.MimeMessage mimeMessage = mock(jakarta.mail.internet.MimeMessage.class);
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        String to = "recipient@example.com";
+        String subject = "Re Sapori - Order Confirmed";
+        String htmlBody = "<h1>Order Confirmed</h1>";
+
+        emailService.sendHtmlEmail(to, subject, htmlBody);
+
+        verify(mailSender, times(1)).send(mimeMessage);
     }
 }

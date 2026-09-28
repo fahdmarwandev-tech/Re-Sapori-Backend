@@ -21,6 +21,8 @@ public class MenuItemResponse {
     private String descriptionEn;
     private String descriptionAr;
     private BigDecimal currentPrice;
+    private BigDecimal originalPrice;
+    private BigDecimal discountPrice;
     private BigDecimal miniPrice;
     private String imageUrl;
     private Boolean available;

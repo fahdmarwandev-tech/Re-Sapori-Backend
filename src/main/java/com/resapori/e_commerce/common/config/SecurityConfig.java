@@ -44,6 +44,11 @@ public class SecurityConfig {
     public static final String BRANCHES_ROOT = "/api/branches";
     public static final String BRANCHES_BASE = "/api/branches/**";
     public static final String UPLOAD_BASE = "/api/upload/**";
+    public static final String UPLOADS_STATIC = "/uploads/**";
+    public static final String OFFERS_ROOT = "/api/offers";
+    public static final String OFFERS_BASE = "/api/offers/**";
+    public static final String PROMO_VALIDATE = "/api/promo-codes/validate";
+    public static final String DELIVERY_BASE = "/api/delivery/**";
     /** SSE stream — auth is performed via the one-time token query param, not JWT header. */
     public static final String SSE_ORDERS = "/api/sse/orders";
 
@@ -91,9 +96,11 @@ public class SecurityConfig {
                                         SWAGGER_RESOURCES,
                                         SWAGGER_HTML,
                                         AUTH_BASE,
-                                        SSE_ORDERS  // token-validated, not JWT — browsers can't set headers on EventSource
+                                        DELIVERY_BASE,
+                                        SSE_ORDERS,  // token-validated, not JWT — browsers can't set headers on EventSource
+                                        UPLOADS_STATIC
                                 ).permitAll()
-                                .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE).permitAll()
+                                .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE, OFFERS_ROOT, OFFERS_BASE, PROMO_VALIDATE, UPLOADS_STATIC).permitAll()
                                 .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

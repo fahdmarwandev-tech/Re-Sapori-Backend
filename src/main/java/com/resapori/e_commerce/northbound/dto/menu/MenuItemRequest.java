@@ -25,6 +25,8 @@ public class MenuItemRequest {
     private String descriptionAr;
     @NotNull(message = "Current price is required")
     private BigDecimal currentPrice;
+    private BigDecimal originalPrice;
+    private BigDecimal discountPrice;
     private BigDecimal miniPrice;
     private String imageUrl;
     @Builder.Default

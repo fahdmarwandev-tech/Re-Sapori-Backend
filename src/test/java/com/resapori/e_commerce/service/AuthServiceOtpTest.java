@@ -54,6 +54,9 @@ class AuthServiceOtpTest {
     private IEmailService emailService;
 
     @Mock
+    private IEmailTemplateService emailTemplateService;
+
+    @Mock
     private AuthUtil authUtil;
 
     @Mock
@@ -84,7 +87,7 @@ class AuthServiceOtpTest {
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         assertTrue(ex.getReason().contains("No registered account found"));
         verify(userOtpRepository, never()).save(any());
-        verify(emailService, never()).sendEmail(any(), any(), any());
+        verify(emailService, never()).sendHtmlEmail(any(), any(), any());
     }
 
     @Test
@@ -97,6 +100,7 @@ class AuthServiceOtpTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
         when(authUtil.generateOtp(6)).thenReturn("123456");
         when(userOtpRepository.existsByOtp("123456")).thenReturn(false);
+        when(emailTemplateService.buildOtpEmail(eq("123456"), eq(5))).thenReturn("<html>123456</html>");
 
         ForgotPasswordRequest request = new ForgotPasswordRequest(email);
         Map<String, String> response = authService.forgotPassword(request);
@@ -113,7 +117,7 @@ class AuthServiceOtpTest {
         assertNotNull(savedOtp.getExpiryDate());
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendEmail(eq(email), eq("Re-Sapori - Password Reset OTP"), bodyCaptor.capture());
+        verify(emailService).sendHtmlEmail(eq(email), eq("Re-Sapori - Password Reset OTP"), bodyCaptor.capture());
         assertTrue(bodyCaptor.getValue().contains("123456"));
     }
 

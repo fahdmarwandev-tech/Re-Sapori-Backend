@@ -12,4 +12,5 @@ public interface IPromoCodeService {
     List<PromoCodeResponse> getAll();
     PromoCodeResponse update(UUID id, PromoCodeRequest request);
     void delete(UUID id);
+    PromoCodeResponse validateCode(String code);
 }

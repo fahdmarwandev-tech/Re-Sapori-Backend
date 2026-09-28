@@ -42,4 +42,14 @@ public class OrderItem extends BaseEntity {
     @Column(name = "unit_price_at_purchase", nullable = false)
     private BigDecimal unitPriceAtPurchase;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "offer_id")
+    private Offer offer;
+
+    @Column(name = "bundle_group_id")
+    private java.util.UUID bundleGroupId;
+
+    @Column(name = "is_free", nullable = false)
+    private boolean isFree = false;
+
 }

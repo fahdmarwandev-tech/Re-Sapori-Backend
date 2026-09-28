@@ -16,6 +16,7 @@ public interface PromoCodeMapper {
 
     @Mapping(source = "freeItem.id", target = "freeItemId")
     @Mapping(source = "user.id", target = "userId")
+    @org.mapstruct.BeanMapping(builder = @org.mapstruct.Builder(disableBuilder = true))
     PromoCodeResponse toResponse(PromoCode entity);
 
     List<PromoCodeResponse> toResponseList(List<PromoCode> entities);

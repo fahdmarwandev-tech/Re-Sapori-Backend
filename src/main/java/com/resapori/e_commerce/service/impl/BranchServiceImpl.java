@@ -62,6 +62,8 @@ public class BranchServiceImpl implements IBranchService {
         entity.setName(request.getName());
         entity.setAddress(request.getAddress());
         entity.setPhoneNumber(request.getPhoneNumber());
+        entity.setLat(request.getLat());
+        entity.setLng(request.getLng());
         if (request.getIsActive() != null) {
             entity.setActive(request.getIsActive());
         }

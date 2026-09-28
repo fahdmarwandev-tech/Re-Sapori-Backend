@@ -59,4 +59,17 @@ databaseChangeLog:
       file: db/changelog/changes/29-create-user-otps.sql
   - include:
       file: db/changelog/changes/30-alter-user-otps-add-reset-token.sql
-
+  - include:
+      file: db/changelog/changes/31-alter-menu-items-add-discount-and-original-price.sql
+  - include:
+      file: db/changelog/changes/32-update-offers-and-discounts.sql
+  - include:
+      file: db/changelog/changes/33-create-offers-and-slots.sql
+  - include:
+      file: db/changelog/changes/34-seed-offers-and-slots.sql
+  - include:
+      file: db/changelog/changes/35-alter-payment-method-enum.sql
+  - include:
+      file: db/changelog/changes/36-alter-branches-add-location.sql
+  - include:
+      file: db/changelog/changes/37-alter-orders-add-delivery-fee.sql

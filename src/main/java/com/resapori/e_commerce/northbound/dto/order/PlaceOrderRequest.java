@@ -21,9 +21,10 @@ public class PlaceOrderRequest {
     private OrderType orderType;
     private UUID branchId;
     private UUID addressId;
-    @NotEmpty(message = "Order items cannot be empty")
     @Valid
     private List<OrderItemInput> items;
+    @Valid
+    private List<OrderOfferInput> offers;
     private String promoCode;
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;

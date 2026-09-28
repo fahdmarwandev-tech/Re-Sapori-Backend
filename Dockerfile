@@ -17,6 +17,7 @@ WORKDIR /app
 
 # Non-root user for security
 RUN groupadd -r spring && useradd -r -g spring spring
+RUN mkdir -p /app/uploads && chown -R spring:spring /app/uploads
 USER spring:spring
 
 # Copy built jar from builder

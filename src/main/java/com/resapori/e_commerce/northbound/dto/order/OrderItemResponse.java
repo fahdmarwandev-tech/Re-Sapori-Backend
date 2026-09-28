@@ -21,4 +21,8 @@ public class OrderItemResponse {
     private ItemSize size;
     private BigDecimal unitPriceAtPurchase;
     private BigDecimal lineTotal;
+    private UUID offerId;
+    private String offerName;
+    private UUID bundleGroupId;
+    private boolean isFree;
 }

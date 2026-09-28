@@ -22,6 +22,7 @@ public class OrderResponse {
     private OrderType orderType;
     private PaymentMethod paymentMethod;
     private BigDecimal totalAmount;
+    private BigDecimal deliveryFee;
     private String currency;
     private String deliveryAddress;
     private UUID branchId;
