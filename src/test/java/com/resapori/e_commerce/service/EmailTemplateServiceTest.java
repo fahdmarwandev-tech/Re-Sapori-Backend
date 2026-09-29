@@ -79,6 +79,36 @@ class EmailTemplateServiceTest {
         assertTrue(html.contains("Share3 October"), "Should show delivery address");
         assertTrue(html.contains("650.00"), "Should show total amount");
         assertTrue(html.contains("Confirmed &amp; Being Prepared"), "Should show confirmed badge");
+        assertFalse(html.contains("Zamalek"), "Should not contain hardcoded Zamalek");
+    }
+
+    @Test
+    @DisplayName("buildOrderConfirmedEmail: Displays actual calculated delivery fee dynamically")
+    void buildOrderConfirmedEmail_showsActualDeliveryFee() {
+        OrderResponse orderWithFee = OrderResponse.builder()
+                .id(UUID.randomUUID())
+                .status(OrderStatus.PREPARING)
+                .orderType(OrderType.DELIVERY)
+                .deliveryFee(new BigDecimal("49.00"))
+                .totalAmount(new BigDecimal("349.00"))
+                .currency("EGP")
+                .build();
+
+        String htmlWithFee = templateService.buildOrderConfirmedEmail(orderWithFee);
+        assertTrue(htmlWithFee.contains("+49.00 EGP"), "Should render actual delivery fee");
+        assertTrue(htmlWithFee.contains("Delivery &amp; Service Fee"));
+
+        OrderResponse orderFreeDelivery = OrderResponse.builder()
+                .id(UUID.randomUUID())
+                .status(OrderStatus.PREPARING)
+                .orderType(OrderType.DELIVERY)
+                .deliveryFee(BigDecimal.ZERO)
+                .totalAmount(new BigDecimal("300.00"))
+                .currency("EGP")
+                .build();
+
+        String htmlFree = templateService.buildOrderConfirmedEmail(orderFreeDelivery);
+        assertTrue(htmlFree.contains("FREE"), "Should render FREE for zero delivery fee");
     }
 
     @Test
@@ -89,6 +119,7 @@ class EmailTemplateServiceTest {
             assertNotNull(html);
             assertTrue(html.contains("Valued Guest"));
             assertTrue(html.contains("#RS-000000"));
+            assertFalse(html.contains("Zamalek"));
         });
     }
 
@@ -113,5 +144,14 @@ class EmailTemplateServiceTest {
         assertTrue(html.contains("Order Cancelled"));
         assertTrue(html.contains("350.00 EGP"));
         assertTrue(html.contains("refund"));
+        assertFalse(html.contains("Zamalek"), "Should not contain hardcoded Zamalek");
+    }
+
+    @Test
+    @DisplayName("buildOtpEmail: Does not contain hardcoded Zamalek")
+    void buildOtpEmail_noZamalek() {
+        String html = templateService.buildOtpEmail("123456", 5);
+        assertFalse(html.contains("Zamalek"), "OTP email should not contain hardcoded Zamalek");
+        assertTrue(html.contains("6th of October City"));
     }
 }

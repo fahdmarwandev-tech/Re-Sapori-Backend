@@ -36,6 +36,10 @@ public class UserOtp {
     @Column(name = "email", nullable = false)
     private String email;
 
+    public void setEmail(String email) {
+        this.email = email != null ? email.trim().toLowerCase() : null;
+    }
+
     @NotBlank(message = "OTP code cannot be blank")
     @Column(name = "otp_code", nullable = false)
     private String otp;

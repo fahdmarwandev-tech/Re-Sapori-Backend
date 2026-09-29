@@ -162,10 +162,17 @@ public class OrderServiceImpl implements IOrderService {
             UserAddress address = resolveDeliveryAddress(request.getAddressId(), user.getId());
             order.setDeliveryAddress(formatAddress(address));
 
-            DeliveryFeeResponse feeRes = deliveryService.calculateForAddress(address.getId(), request.getBranchId());
-            order.setDeliveryFee(feeRes != null && feeRes.getDeliveryFee() != null ? feeRes.getDeliveryFee() : BigDecimal.valueOf(35.00));
-            if (feeRes != null && feeRes.getBranchId() != null) {
-                branchRepository.findById(feeRes.getBranchId()).ifPresent(order::setBranch);
+            boolean isCarDelivery = (address.getLabel() != null && address.getLabel().equalsIgnoreCase("Car Delivery"))
+                    || (address.getStreet() != null && address.getStreet().startsWith("Car Delivery"));
+
+            if (isCarDelivery) {
+                order.setDeliveryFee(BigDecimal.ZERO);
+            } else {
+                DeliveryFeeResponse feeRes = deliveryService.calculateForAddress(address.getId(), request.getBranchId());
+                order.setDeliveryFee(feeRes != null && feeRes.getDeliveryFee() != null ? feeRes.getDeliveryFee() : BigDecimal.valueOf(35.00));
+                if (feeRes != null && feeRes.getBranchId() != null) {
+                    branchRepository.findById(feeRes.getBranchId()).ifPresent(order::setBranch);
+                }
             }
             if (order.getBranch() == null) {
                 branchRepository.findByIsActiveTrue().stream().findFirst().ifPresent(order::setBranch);

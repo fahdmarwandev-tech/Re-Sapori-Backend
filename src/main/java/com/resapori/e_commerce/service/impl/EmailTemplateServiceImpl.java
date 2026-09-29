@@ -98,7 +98,7 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                       <tr>
                         <td align="center" style="padding: 22px 30px; background-color: #12110f; border-top: 1px solid #231f18; font-size: 11px; color: #6b6459; line-height: 1.6;">
                           <div style="color: #9e9382; font-weight: 600; margin-bottom: 4px;">Re Sapori • Fine Dining</div>
-                          <div>Zamalek Flagship, Cairo, Egypt</div>
+                          <div>6th of October City, Giza, Egypt</div>
                           <div style="margin-top: 6px; font-size: 10px; color: #524d45;">&copy; 2026 Re Sapori. All rights reserved.</div>
                         </td>
                       </tr>
@@ -127,10 +127,10 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                 : "DINE-IN";
         String destination = (order != null && order.getOrderType() == OrderType.DELIVERY)
                 ? (order.getDeliveryAddress() != null ? escapeHtml(order.getDeliveryAddress()) : "Address on file")
-                : (order != null && order.getBranchName() != null ? escapeHtml(order.getBranchName()) : "Zamalek Flagship");
+                : (order != null && order.getBranchName() != null ? escapeHtml(order.getBranchName()) : "Re Sapori Hub");
         String branchName = (order != null && order.getBranchName() != null && !order.getBranchName().isBlank())
                 ? escapeHtml(order.getBranchName())
-                : "Re Sapori Flagship";
+                : "Re Sapori Kitchen Hub";
         String paymentMethodStr = (order != null && order.getPaymentMethod() != null)
                 ? order.getPaymentMethod().name().replace("_", " ")
                 : "Cash";
@@ -175,7 +175,21 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                 """);
         }
 
-        if (order.getDeliveryFee() != null && order.getDeliveryFee().compareTo(BigDecimal.ZERO) > 0) {
+        if (order != null && order.getOrderType() == OrderType.DELIVERY) {
+            String feeFormatted = (order.getDeliveryFee() != null && order.getDeliveryFee().compareTo(BigDecimal.ZERO) > 0)
+                    ? "+" + formatCurrency(order.getDeliveryFee()) + " " + (order.getCurrency() != null ? escapeHtml(order.getCurrency()) : "EGP")
+                    : "FREE";
+            itemsRows.append("""
+                <tr>
+                  <td colspan="2" align="left" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #b5ac9f; font-size: 13px;">
+                    &#128757; <em>Delivery &amp; Service Fee</em>
+                  </td>
+                  <td align="right" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #ffb952; font-size: 13px; font-weight: 600; white-space: nowrap;">
+                    """).append(feeFormatted).append("""
+                  </td>
+                </tr>
+                """);
+        } else if (order != null && order.getDeliveryFee() != null && order.getDeliveryFee().compareTo(BigDecimal.ZERO) > 0) {
             itemsRows.append("""
                 <tr>
                   <td colspan="2" align="left" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #b5ac9f; font-size: 13px;">
@@ -297,7 +311,7 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                       <tr>
                         <td align="center" style="padding: 22px 30px; background-color: #12110f; border-top: 1px solid #231f18; font-size: 11px; color: #6b6459; line-height: 1.6;">
                           <div style="color: #9e9382; font-weight: 600; margin-bottom: 4px;">Re Sapori • Fine Dining</div>
-                          <div>Zamalek Flagship, Cairo, Egypt</div>
+                          <div>6th of October City, Giza, Egypt</div>
                           <div style="margin-top: 6px; font-size: 10px; color: #524d45;">&copy; 2026 Re Sapori. All rights reserved.</div>
                         </td>
                       </tr>
@@ -392,7 +406,7 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                             If payment was already completed online via Card or Paymob, a full refund has been initiated and will reflect according to your bank&#39;s standard processing timeframe.
                           </p>
                           <p style="font-size: 12px; line-height: 1.5; color: #787063; margin: 0; text-align: center;">
-                            Need help with your order? Reply directly to this email or visit us at our Zamalek Flagship.
+                            Need help with your order? Reply directly to this email or contact our customer support.
                           </p>
                         </td>
                       </tr>
@@ -401,7 +415,7 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                       <tr>
                         <td align="center" style="padding: 22px 30px; background-color: #12110f; border-top: 1px solid #231f18; font-size: 11px; color: #6b6459; line-height: 1.6;">
                           <div style="color: #9e9382; font-weight: 600; margin-bottom: 4px;">Re Sapori • Fine Dining</div>
-                          <div>Zamalek Flagship, Cairo, Egypt</div>
+                          <div>6th of October City, Giza, Egypt</div>
                           <div style="margin-top: 6px; font-size: 10px; color: #524d45;">&copy; 2026 Re Sapori. All rights reserved.</div>
                         </td>
                       </tr>

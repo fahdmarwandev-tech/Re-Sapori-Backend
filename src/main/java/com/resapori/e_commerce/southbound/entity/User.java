@@ -38,6 +38,10 @@ public class User extends BaseEntity {
     @Email
     private String email;
 
+    public void setEmail(String email) {
+        this.email = email != null ? email.trim().toLowerCase() : null;
+    }
+
     @Column(name = "phone_number")
     private String phoneNumber;
 

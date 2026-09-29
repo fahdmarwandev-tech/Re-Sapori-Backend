@@ -2,17 +2,23 @@ package com.resapori.e_commerce.service;
 
 import com.resapori.e_commerce.common.security.AuthUtil;
 import com.resapori.e_commerce.common.security.JwtService;
+import com.resapori.e_commerce.northbound.dto.auth.AuthResponse;
 import com.resapori.e_commerce.northbound.dto.auth.ForgotPasswordRequest;
+import com.resapori.e_commerce.northbound.dto.auth.LoginRequest;
+import com.resapori.e_commerce.northbound.dto.auth.RegisterRequest;
 import com.resapori.e_commerce.northbound.dto.auth.ResetPasswordRequest;
 import com.resapori.e_commerce.northbound.dto.auth.VerifyOtpRequest;
 import com.resapori.e_commerce.northbound.dto.auth.VerifyOtpResponse;
 import com.resapori.e_commerce.service.impl.AuthServiceImpl;
+import com.resapori.e_commerce.southbound.entity.RefreshToken;
+import com.resapori.e_commerce.southbound.entity.Role;
 import com.resapori.e_commerce.southbound.entity.User;
 import com.resapori.e_commerce.southbound.entity.UserOtp;
 import com.resapori.e_commerce.southbound.repository.IRefreshTokenRepository;
 import com.resapori.e_commerce.southbound.repository.IRoleRepository;
 import com.resapori.e_commerce.southbound.repository.IUserOtpRepository;
 import com.resapori.e_commerce.southbound.repository.IUserRepository;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -303,5 +309,109 @@ class AuthServiceOtpTest {
         verify(userRepository).save(user);
         verify(userOtpRepository).delete(otp);
         verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    // ==========================================
+    // 4. Email Normalization Tests (Trim & Lowercase)
+    // ==========================================
+
+    @Test
+    @DisplayName("register: Should trim and lowercase email when saving new user")
+    void register_shouldTrimAndLowercaseEmail() {
+        RegisterRequest request = RegisterRequest.builder()
+                .name("John Doe")
+                .email("  John.Doe@Example.COM  ")
+                .password("SecurePass123!")
+                .build();
+
+        Role customerRole = new Role();
+        customerRole.setName("CUSTOMER");
+
+        when(userRepository.findByEmail("john.doe@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("john.doe@example.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByName("CUSTOMER")).thenReturn(Optional.of(customerRole));
+        when(passwordEncoder.encode(any())).thenReturn("hashed_password");
+        when(jwtService.generateToken(any())).thenReturn("dummy_jwt");
+        when(refreshTokenRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse res = authService.register(request);
+
+        assertNotNull(res);
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals("john.doe@example.com", userCaptor.getValue().getEmail());
+    }
+
+    @Test
+    @DisplayName("login: Should trim and lowercase email during authentication")
+    void login_shouldTrimAndLowercaseEmail() {
+        LoginRequest request = LoginRequest.builder()
+                .email("  User.Test@Example.COM  ")
+                .password("Password123")
+                .build();
+
+        User user = new User();
+        user.setEmail("user.test@example.com");
+        user.setPasswordHash("hashed_password");
+
+        when(userRepository.findByEmail("user.test@example.com")).thenReturn(Optional.of(user));
+        when(jwtService.generateToken(any())).thenReturn("dummy_jwt");
+        when(refreshTokenRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse res = authService.login(request);
+
+        assertNotNull(res);
+        ArgumentCaptor<UsernamePasswordAuthenticationToken> tokenCaptor =
+                ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);
+        verify(authenticationManager).authenticate(tokenCaptor.capture());
+        assertEquals("user.test@example.com", tokenCaptor.getValue().getPrincipal());
+    }
+
+    @Test
+    @DisplayName("forgotPassword: Should trim and lowercase email for user and OTP records")
+    void forgotPassword_shouldTrimAndLowercaseEmail() {
+        ForgotPasswordRequest request = ForgotPasswordRequest.builder()
+                .email("  Cust.Support@DOMAIN.COM  ")
+                .build();
+
+        User user = new User();
+        user.setEmail("cust.support@domain.com");
+
+        when(userRepository.findByEmail("cust.support@domain.com")).thenReturn(Optional.of(user));
+        when(authUtil.generateOtp(6)).thenReturn("112233");
+        when(userOtpRepository.existsByOtp("112233")).thenReturn(false);
+        when(emailTemplateService.buildOtpEmail(anyString(), anyInt())).thenReturn("<html>OTP</html>");
+
+        Map<String, String> response = authService.forgotPassword(request);
+
+        assertEquals("OTP has been sent to your email", response.get("message"));
+        ArgumentCaptor<UserOtp> otpCaptor = ArgumentCaptor.forClass(UserOtp.class);
+        verify(userOtpRepository).save(otpCaptor.capture());
+        assertEquals("cust.support@domain.com", otpCaptor.getValue().getEmail());
+        verify(emailService).sendHtmlEmail(eq("cust.support@domain.com"), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("verifyOtp: Should trim and lowercase email when querying UserOtp repository")
+    void verifyOtp_shouldTrimAndLowercaseEmail() {
+        VerifyOtpRequest request = VerifyOtpRequest.builder()
+                .email("  Cust.Support@DOMAIN.COM  ")
+                .otp("  654321  ")
+                .build();
+
+        UserOtp otp = UserOtp.builder()
+                .email("cust.support@domain.com")
+                .otp("654321")
+                .isVerified(false)
+                .expiryDate(LocalDateTime.now().plusMinutes(5))
+                .build();
+
+        when(userOtpRepository.findByEmail("cust.support@domain.com")).thenReturn(Optional.of(otp));
+
+        VerifyOtpResponse response = authService.verifyOtp(request);
+
+        assertEquals("OTP verified successfully", response.getMessage());
+        assertNotNull(response.getResetPasswordToken());
+        verify(userOtpRepository).findByEmail("cust.support@domain.com");
     }
 }

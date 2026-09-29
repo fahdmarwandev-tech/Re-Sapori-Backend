@@ -12,4 +12,7 @@ import java.util.UUID;
 public interface IUserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = {"roles"})
     Optional<User> findByEmail(String email);
+
+    @EntityGraph(attributePaths = {"roles"})
+    Optional<User> findByEmailIgnoreCase(String email);
 }

@@ -12,4 +12,12 @@ import lombok.NoArgsConstructor;
 public class LoginRequest {
     private String email;
     private String password;
+
+    public String getEmail() {
+        return email != null ? email.trim().toLowerCase() : null;
+    }
+
+    public void setEmail(String email) {
+        this.email = email != null ? email.trim().toLowerCase() : null;
+    }
 }

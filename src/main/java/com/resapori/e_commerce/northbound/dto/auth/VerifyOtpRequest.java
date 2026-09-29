@@ -19,6 +19,14 @@ public class VerifyOtpRequest {
     @Email(message = "Invalid email format")
     private String email;
 
+    public String getEmail() {
+        return email != null ? email.trim().toLowerCase() : null;
+    }
+
+    public void setEmail(String email) {
+        this.email = email != null ? email.trim().toLowerCase() : null;
+    }
+
     @Schema(description = "6-digit OTP code received in email", example = "123456")
     @NotBlank(message = "OTP code is required")
     private String otp;

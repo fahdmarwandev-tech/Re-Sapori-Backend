@@ -496,7 +496,7 @@ class OrderServiceImplTest {
 
         DeliveryFeeResponse feeResponse = DeliveryFeeResponse.builder()
                 .distanceKm(new BigDecimal("6.00"))
-                .deliveryFee(new BigDecimal("39.00")) // 25 + 7(2) = 39.00
+                .deliveryFee(new BigDecimal("49.00")) // 35 + 7(2) = 49.00
                 .branchId(testBranch.getId())
                 .branchName("Main Branch")
                 .currency("EGP")
@@ -523,9 +523,50 @@ class OrderServiceImplTest {
         verify(orderRepository).save(orderCaptor.capture());
 
         Order saved = orderCaptor.getValue();
-        assertEquals(0, new BigDecimal("39.00").compareTo(saved.getDeliveryFee()));
-        // Items: 240.00 + Delivery Fee: 39.00 = 279.00
-        assertEquals(0, new BigDecimal("279.00").compareTo(saved.getTotalAmount()));
+        assertEquals(0, new BigDecimal("49.00").compareTo(saved.getDeliveryFee()));
+        // Items: 240.00 + Delivery Fee: 49.00 = 289.00
+        assertEquals(0, new BigDecimal("289.00").compareTo(saved.getTotalAmount()));
         assertEquals(testBranch, saved.getBranch());
+    }
+
+    @Test
+    @DisplayName("placeOrder: For Car Delivery orders, sets delivery fee to ZERO")
+    void placeOrder_CarDeliveryOrder_SetsZeroDeliveryFee() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+
+        UUID carAddrId = UUID.randomUUID();
+        UserAddress carAddress = new UserAddress();
+        carAddress.setId(carAddrId);
+        carAddress.setUser(testUser);
+        carAddress.setLabel("Car Delivery");
+        carAddress.setStreet("Car Delivery - Plate: ABC 123");
+        when(userAddressRepository.findById(carAddrId)).thenReturn(Optional.of(carAddress));
+        when(branchRepository.findByIsActiveTrue()).thenReturn(List.of(testBranch));
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.DELIVERY);
+        request.setAddressId(carAddrId);
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1); // 240 EGP
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        OrderResponse response = orderService.placeOrder(request);
+
+        assertNotNull(response);
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, atLeastOnce()).save(orderCaptor.capture());
+
+        Order saved = orderCaptor.getValue();
+        assertEquals(0, BigDecimal.ZERO.compareTo(saved.getDeliveryFee()));
+        // Items: 240.00 + Delivery Fee: 0.00 = 240.00
+        assertEquals(0, new BigDecimal("240.00").compareTo(saved.getTotalAmount()));
     }
 }

@@ -59,12 +59,17 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+        String cleanEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null;
+        if (cleanEmail == null || cleanEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
+        if (userRepository.findByEmail(cleanEmail).isPresent() || userRepository.findByEmailIgnoreCase(cleanEmail).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists with this email");
         }
 
         Role customerRole = resolveCustomerRole();
         User user = buildUser(request, customerRole);
+        user.setEmail(cleanEmail);
         userRepository.save(user);
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
@@ -79,11 +84,17 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
+        String cleanEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null;
+        if (cleanEmail == null || cleanEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
+
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(cleanEmail, request.getPassword())
         );
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(cleanEmail)
+                .or(() -> userRepository.findByEmailIgnoreCase(cleanEmail))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         String jwtToken = jwtService.generateToken(new CustomUserDetails(user));
@@ -156,10 +167,14 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     @Transactional
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
-        String email = request.getEmail().trim().toLowerCase();
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        if (email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
 
         // 1. Verify user is registered
         userRepository.findByEmail(email)
+                .or(() -> userRepository.findByEmailIgnoreCase(email))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No registered account found with email: " + email));
 
         // 2. Invalidate any existing OTPs for this email
@@ -188,8 +203,8 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     @Transactional
     public VerifyOtpResponse verifyOtp(VerifyOtpRequest request) {
-        String email = request.getEmail().trim().toLowerCase();
-        String inputOtp = request.getOtp().trim();
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
 
         // 1. Retrieve OTP record for this email
         UserOtp userOtp = userOtpRepository.findByEmail(email)
@@ -246,7 +261,9 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // 4. Find user
-        User user = userRepository.findByEmail(userOtp.getEmail())
+        String email = userOtp.getEmail() != null ? userOtp.getEmail().trim().toLowerCase() : "";
+        User user = userRepository.findByEmail(email)
+                .or(() -> userRepository.findByEmailIgnoreCase(email))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User associated with this token was not found."));
 
         // 5. Check that new password is NOT the same as old password

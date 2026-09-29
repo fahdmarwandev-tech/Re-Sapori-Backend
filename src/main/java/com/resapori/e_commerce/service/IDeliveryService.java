@@ -17,8 +17,8 @@ public interface IDeliveryService {
 
     /**
      * Calculates the delivery fee based on net distance in kilometers:
-     * - If distance <= 4.0 km -> 25.00 EGP
-     * - Else -> 25.00 + 7.00 * (distance - 4.0) EGP
+     * - If distance <= 4.0 km -> 35.00 EGP
+     * - Else -> 35.00 + 7.00 * (distance - 4.0) EGP
      */
     BigDecimal calculateDeliveryFee(BigDecimal distanceKm);
 
