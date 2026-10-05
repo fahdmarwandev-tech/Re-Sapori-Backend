@@ -1,7 +1,10 @@
 package com.resapori.e_commerce.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resapori.e_commerce.northbound.dto.delivery.CalculateDeliveryFeeRequest;
 import com.resapori.e_commerce.northbound.dto.delivery.DeliveryFeeResponse;
+import com.resapori.e_commerce.northbound.dto.delivery.DeliveryZoneDto;
 import com.resapori.e_commerce.service.IDeliveryService;
 import com.resapori.e_commerce.southbound.entity.Branch;
 import com.resapori.e_commerce.southbound.entity.UserAddress;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +37,7 @@ public class DeliveryServiceImpl implements IDeliveryService {
 
     private final IBranchRepository branchRepository;
     private final IUserAddressRepository userAddressRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public BigDecimal calculateDistanceKm(BigDecimal lat1, BigDecimal lng1, BigDecimal lat2, BigDecimal lng2) {
@@ -92,22 +97,48 @@ public class DeliveryServiceImpl implements IDeliveryService {
         UUID preferredBranchId = request != null ? request.getBranchId() : null;
         Branch branch = resolveBranchForDelivery(customerLat, customerLng, preferredBranchId);
 
+        // If no active branch exists at all
+        if (branch == null || !branch.isActive()) {
+            return DeliveryFeeResponse.builder()
+                    .distanceKm(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                    .deliveryFee(BigDecimal.ZERO)
+                    .branchId(null)
+                    .branchName("No Active Branch")
+                    .currency("EGP")
+                    .isCovered(false)
+                    .build();
+        }
+
         // If no coordinates could be resolved, return standard base fee
         if (customerLat == null || customerLng == null) {
             return DeliveryFeeResponse.builder()
                     .distanceKm(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                     .deliveryFee(BASE_FEE.setScale(2, RoundingMode.HALF_UP))
-                    .branchId(branch != null ? branch.getId() : null)
-                    .branchName(branch != null ? branch.getName() : "Re-Sapori Main")
+                    .branchId(branch.getId())
+                    .branchName(branch.getName())
                     .currency("EGP")
+                    .isCovered(true)
                     .build();
         }
 
-        BigDecimal branchLat = (branch != null && branch.getLat() != null) ? branch.getLat() : DEFAULT_RESTAURANT_LAT;
-        BigDecimal branchLng = (branch != null && branch.getLng() != null) ? branch.getLng() : DEFAULT_RESTAURANT_LNG;
+        BigDecimal branchLat = (branch.getLat() != null) ? branch.getLat() : DEFAULT_RESTAURANT_LAT;
+        BigDecimal branchLng = (branch.getLng() != null) ? branch.getLng() : DEFAULT_RESTAURANT_LNG;
 
         BigDecimal distanceKm = calculateDistanceKm(customerLat, customerLng, branchLat, branchLng);
-        BigDecimal fee = calculateDeliveryFee(distanceKm);
+
+        // Check if customer falls into any delivery zone for the fulfilling branch
+        DeliveryZoneDto matchedZone = (branch != null) ? findMatchingZone(branch, customerLat, customerLng) : null;
+        boolean isCovered = (matchedZone != null);
+
+        // Zone-specific fee override or standard distance fee
+        BigDecimal fee;
+        if (!isCovered) {
+            fee = BigDecimal.ZERO;
+        } else if (matchedZone != null && matchedZone.getDeliveryFee() != null) {
+            fee = matchedZone.getDeliveryFee();
+        } else {
+            fee = calculateDeliveryFee(distanceKm);
+        }
 
         return DeliveryFeeResponse.builder()
                 .distanceKm(distanceKm)
@@ -115,6 +146,8 @@ public class DeliveryServiceImpl implements IDeliveryService {
                 .branchId(branch != null ? branch.getId() : null)
                 .branchName(branch != null ? branch.getName() : "Re-Sapori Kitchen Hub")
                 .currency("EGP")
+                .isCovered(isCovered)
+                .zoneName(matchedZone != null ? matchedZone.getName() : null)
                 .build();
     }
 
@@ -134,7 +167,40 @@ public class DeliveryServiceImpl implements IDeliveryService {
             return null;
         }
 
-        // 1. If customer requested a specific branch, prioritize it if active
+        // 1. If customer coordinates are present, prioritize branches whose delivery zones contain the coordinates
+        if (customerLat != null && customerLng != null) {
+            // A. Check if requested preferred branch covers the customer
+            if (preferredBranchId != null) {
+                for (Branch b : activeBranches) {
+                    if (b.getId().equals(preferredBranchId)) {
+                        if (findMatchingZone(b, customerLat, customerLng) != null) {
+                            return b;
+                        }
+                    }
+                }
+            }
+
+            // B. Find all active branches that cover this customer
+            List<Branch> coveringBranches = activeBranches.stream()
+                    .filter(b -> findMatchingZone(b, customerLat, customerLng) != null)
+                    .toList();
+
+            if (!coveringBranches.isEmpty()) {
+                // Return the closest covering branch
+                return coveringBranches.stream()
+                        .filter(b -> b.getLat() != null && b.getLng() != null)
+                        .min(Comparator.comparing(b -> calculateDistanceKm(customerLat, customerLng, b.getLat(), b.getLng())))
+                        .orElse(coveringBranches.get(0));
+            }
+
+            // C. Fallback: closest branch by distance even if technically outside configured zones
+            return activeBranches.stream()
+                    .filter(b -> b.getLat() != null && b.getLng() != null)
+                    .min(Comparator.comparing(b -> calculateDistanceKm(customerLat, customerLng, b.getLat(), b.getLng())))
+                    .orElse(activeBranches.get(0));
+        }
+
+        // 2. No coordinates provided: prioritize preferred branch if active
         if (preferredBranchId != null) {
             for (Branch b : activeBranches) {
                 if (b.getId().equals(preferredBranchId)) {
@@ -143,15 +209,100 @@ public class DeliveryServiceImpl implements IDeliveryService {
             }
         }
 
-        // 2. If customer has coordinates, find the closest active branch with valid coordinates
-        if (customerLat != null && customerLng != null) {
-            return activeBranches.stream()
-                    .filter(b -> b.getLat() != null && b.getLng() != null)
-                    .min(Comparator.comparing(b -> calculateDistanceKm(customerLat, customerLng, b.getLat(), b.getLng())))
-                    .orElse(activeBranches.get(0));
-        }
-
         // 3. Fallback to first active branch
         return activeBranches.get(0);
+    }
+
+    /**
+     * Checks if a customer coordinate is covered by any active delivery zone (radius or polygon) in a branch.
+     * If the branch has no zones configured, defaults to a 15km circular radius around the branch location.
+     */
+    public DeliveryZoneDto findMatchingZone(Branch branch, BigDecimal customerLat, BigDecimal customerLng) {
+        if (branch == null || !branch.isActive() || customerLat == null || customerLng == null) {
+            return null;
+        }
+
+        List<DeliveryZoneDto> zones = parseZones(branch.getDeliveryZones());
+        if (zones.isEmpty()) {
+            // Check if any active branch in the system has zones configured
+            List<Branch> allActive = branchRepository.findByIsActiveTrue();
+            boolean anyBranchHasZones = allActive.stream()
+                    .anyMatch(b -> !parseZones(b.getDeliveryZones()).isEmpty());
+
+            // Only fallback to 15km default radius if NO branch in the entire system has zones configured yet
+            if (!anyBranchHasZones && branch.getLat() != null && branch.getLng() != null) {
+                BigDecimal dist = calculateDistanceKm(customerLat, customerLng, branch.getLat(), branch.getLng());
+                if (dist.doubleValue() <= 15.0) {
+                    return DeliveryZoneDto.builder()
+                            .name("Default Hub Area")
+                            .type("RADIUS")
+                            .radiusKm(15.0)
+                            .build();
+                }
+            }
+            return null;
+        }
+
+        for (DeliveryZoneDto zone : zones) {
+            if (Boolean.FALSE.equals(zone.getIsActive())) {
+                continue;
+            }
+
+            if ("POLYGON".equalsIgnoreCase(zone.getType())) {
+                if (zone.getCoordinates() != null && zone.getCoordinates().size() >= 3) {
+                    if (isPointInPolygon(customerLat.doubleValue(), customerLng.doubleValue(), zone.getCoordinates())) {
+                        return zone;
+                    }
+                }
+            } else {
+                // RADIUS
+                BigDecimal cLat = zone.getCenterLat() != null ? zone.getCenterLat() : branch.getLat();
+                BigDecimal cLng = zone.getCenterLng() != null ? zone.getCenterLng() : branch.getLng();
+                double maxRadius = zone.getRadiusKm() != null ? zone.getRadiusKm() : 8.0;
+
+                if (cLat != null && cLng != null) {
+                    BigDecimal dist = calculateDistanceKm(customerLat, customerLng, cLat, cLng);
+                    if (dist.doubleValue() <= maxRadius) {
+                        return zone;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Standard Ray-Casting algorithm to check if a (lat, lng) point is inside a 2D polygon.
+     */
+    public static boolean isPointInPolygon(double testLat, double testLng, List<List<Double>> points) {
+        if (points == null || points.size() < 3) return false;
+        boolean inside = false;
+        int n = points.size();
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            double latI = points.get(i).get(0);
+            double lngI = points.get(i).get(1);
+            double latJ = points.get(j).get(0);
+            double lngJ = points.get(j).get(1);
+
+            boolean intersect = ((latI > testLat) != (latJ > testLat))
+                    && (testLng < (lngJ - lngI) * (testLat - latI) / (latJ - latI) + lngI);
+            if (intersect) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    private List<DeliveryZoneDto> parseZones(String zonesJson) {
+        if (zonesJson == null || zonesJson.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(zonesJson, new TypeReference<List<DeliveryZoneDto>>() {});
+        } catch (Exception e) {
+            log.warn("Error parsing branch delivery zones JSON: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }

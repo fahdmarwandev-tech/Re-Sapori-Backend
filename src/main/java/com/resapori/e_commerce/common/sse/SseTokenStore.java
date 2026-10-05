@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class SseTokenStore {
 
-    public record SseTokenEntry(String userId, String username) {}
+    public record SseTokenEntry(String userId, String username, UUID branchId, boolean isAdmin) {}
 
     private final Cache<UUID, SseTokenEntry> tokenStore = Caffeine.newBuilder()
             .expireAfterWrite(30, TimeUnit.SECONDS)
@@ -30,9 +30,9 @@ public class SseTokenStore {
             .build();
 
     /** Stores a new token and returns the generated UUID. */
-    public UUID issue(String userId, String username) {
+    public UUID issue(String userId, String username, UUID branchId, boolean isAdmin) {
         UUID token = UUID.randomUUID();
-        tokenStore.put(token, new SseTokenEntry(userId, username));
+        tokenStore.put(token, new SseTokenEntry(userId, username, branchId, isAdmin));
         return token;
     }
 

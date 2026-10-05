@@ -21,7 +21,7 @@ public class DashboardController {
      * GET /api/dashboard — Consolidated dashboard summary.
      * Uses dashboard design pattern with 2 database queries max.
      */
-    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<DashboardSummaryResponse> getDashboardSummary(
             @RequestParam(required = false) String paymentMethod,
@@ -34,7 +34,7 @@ public class DashboardController {
      * GET /api/dashboard/revenue — Dedicated revenue analytics.
      * Supports filtering by payment method (cash, instapay, vodafone cash) in 1 single query.
      */
-    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/revenue")
     public ResponseEntity<DashboardRevenueResponse> getRevenueAnalytics(
             @RequestParam(required = false) String paymentMethod,

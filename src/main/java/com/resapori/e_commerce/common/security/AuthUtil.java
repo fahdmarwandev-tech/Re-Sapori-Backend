@@ -45,4 +45,15 @@ public class AuthUtil {
         }
         return null;
     }
+
+    public boolean hasRole(String role) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        String normalized = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equalsIgnoreCase(normalized)
+                            || a.getAuthority().equalsIgnoreCase(role));
+    }
 }

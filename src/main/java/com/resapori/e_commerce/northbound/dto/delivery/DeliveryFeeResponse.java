@@ -29,4 +29,19 @@ public class DeliveryFeeResponse {
     /** Currency code, typically EGP. */
     @Builder.Default
     private String currency = "EGP";
+
+    /** Whether the customer location is covered by any branch delivery zone. */
+    @Builder.Default
+    private boolean isCovered = true;
+
+    /** Name of the matched delivery zone, if any. */
+    private String zoneName;
+
+    public boolean isCovered() {
+        return isCovered;
+    }
+
+    public boolean getIsCovered() {
+        return isCovered;
+    }
 }

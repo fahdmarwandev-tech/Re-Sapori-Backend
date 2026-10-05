@@ -34,4 +34,8 @@ public class Branch extends BaseEntity {
     /** Longitude — nullable, reserved for branch geo-location & delivery radius features. */
     @Column(name = "lng", precision = 10, scale = 7)
     private BigDecimal lng;
+
+    /** JSON-encoded list of delivery zones (radius and polygon geofences) */
+    @Column(name = "delivery_zones", columnDefinition = "TEXT")
+    private String deliveryZones;
 }

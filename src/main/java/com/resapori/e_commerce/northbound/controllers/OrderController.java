@@ -35,21 +35,22 @@ public class OrderController {
         return ResponseEntity.ok(service.getMyOrders());
     }
 
-    /** GET /api/orders/{id} — get order details. (CUSTOMER/ADMIN) */
+    /** GET /api/orders/{id} — get order details. (CUSTOMER / ADMIN / CASHIER / DELIVERY) */
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'CASHIER', 'DELIVERY')")
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
-    /** GET /api/orders — list all orders (ADMIN / CASHIER). */
-    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER')")
+    /** GET /api/orders — list orders (ADMIN: all, CASHIER / DELIVERY: branch scoped). */
+    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER', 'DELIVERY')")
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
-    /** PATCH /api/orders/{id}/status — update order status (ADMIN / CASHIER). */
-    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER')")
+    /** PATCH /api/orders/{id}/status — update order status (ADMIN / CASHIER / DELIVERY). */
+    @PreAuthorize("hasAnyRole('ADMIN', 'CASHIER', 'DELIVERY')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<OrderResponse> updateStatus(
             @PathVariable UUID id,

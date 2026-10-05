@@ -153,6 +153,9 @@ public class AuthServiceImpl implements IAuthService {
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRoles(Set.of(customerRole));
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+            user.setPhoneNumber(request.getPhoneNumber().trim());
+        }
         return user;
     }
 

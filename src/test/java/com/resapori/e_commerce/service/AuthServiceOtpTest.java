@@ -343,6 +343,36 @@ class AuthServiceOtpTest {
     }
 
     @Test
+    @DisplayName("register: Should save phone number when provided in RegisterRequest")
+    void register_shouldSavePhoneNumberWhenProvided() {
+        RegisterRequest request = RegisterRequest.builder()
+                .name("Sarah Connor")
+                .email("sarah@example.com")
+                .password("SecurePass123!")
+                .phoneNumber("01012345678")
+                .build();
+
+        Role customerRole = new Role();
+        customerRole.setName("CUSTOMER");
+
+        when(userRepository.findByEmail("sarah@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("sarah@example.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByName("CUSTOMER")).thenReturn(Optional.of(customerRole));
+        when(passwordEncoder.encode(any())).thenReturn("hashed_password");
+        when(jwtService.generateToken(any())).thenReturn("dummy_jwt");
+        when(refreshTokenRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse res = authService.register(request);
+
+        assertNotNull(res);
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertEquals("01012345678", userCaptor.getValue().getPhoneNumber());
+        assertEquals("Sarah", userCaptor.getValue().getFirstName());
+        assertEquals("Connor", userCaptor.getValue().getLastName());
+    }
+
+    @Test
     @DisplayName("login: Should trim and lowercase email during authentication")
     void login_shouldTrimAndLowercaseEmail() {
         LoginRequest request = LoginRequest.builder()

@@ -29,17 +29,19 @@ public class SseEmitterRegistry {
     @Value("${sse.emitter-timeout-ms:300000}")
     private long emitterTimeoutMs;
 
-    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    public record SseClient(SseEmitter emitter, java.util.UUID branchId, boolean isAdmin) {}
+
+    private final Map<String, SseClient> clients = new ConcurrentHashMap<>();
 
     /**
-     * Creates, registers, and returns a new {@link SseEmitter} for the given {@code emitterId}.
-     * All three lifecycle hooks remove the emitter from the map on completion, timeout, or error.
+     * Creates, registers, and returns a new {@link SseEmitter} for the given {@code emitterId}
+     * with associated branch and admin status for scoped broadcasts.
      */
-    public SseEmitter register(String emitterId) {
+    public SseEmitter register(String emitterId, java.util.UUID branchId, boolean isAdmin) {
         SseEmitter emitter = new SseEmitter(emitterTimeoutMs);
 
         Runnable cleanup = () -> {
-            emitters.remove(emitterId);
+            clients.remove(emitterId);
             log.debug("SSE emitter removed: {}", emitterId);
         };
 
@@ -47,59 +49,74 @@ public class SseEmitterRegistry {
         emitter.onTimeout(cleanup);
         emitter.onError(e -> cleanup.run());
 
-        emitters.put(emitterId, emitter);
-        log.debug("SSE emitter registered: {} (total={})", emitterId, emitters.size());
+        clients.put(emitterId, new SseClient(emitter, branchId, isAdmin));
+        log.debug("SSE emitter registered: {} (branchId={}, isAdmin={}, total={})",
+                emitterId, branchId, isAdmin, clients.size());
         return emitter;
     }
 
     /**
-     * Broadcasts a named SSE event with the given JSON payload to all connected emitters.
-     * Stale emitters that fail to send are removed immediately.
+     * Broadcasts a named SSE event with the given JSON payload to connected emitters.
+     * Cashiers only receive events for their assigned branch, while Admins receive all.
      */
     public void broadcast(String eventName, Object data) {
-        if (emitters.isEmpty()) {
+        if (clients.isEmpty()) {
             return;
         }
+
+        java.util.UUID orderBranchId = null;
+        if (data instanceof com.resapori.e_commerce.northbound.dto.order.OrderResponse orderRes) {
+            orderBranchId = orderRes.getBranchId();
+        }
+
         SseEmitter.SseEventBuilder event = SseEmitter.event()
                 .name(eventName)
                 .data(data);
 
-        emitters.forEach((id, emitter) -> {
+        for (Map.Entry<String, SseClient> entry : clients.entrySet()) {
+            String id = entry.getKey();
+            SseClient client = entry.getValue();
+
+            // Branch filtering: non-admin cashiers only receive orders belonging to their branch
+            if (!client.isAdmin() && client.branchId() != null && orderBranchId != null) {
+                if (!client.branchId().equals(orderBranchId)) {
+                    continue; // Skip: order belongs to another branch
+                }
+            }
+
             try {
-                emitter.send(event);
+                client.emitter().send(event);
             } catch (IOException | IllegalStateException ex) {
                 log.warn("Failed to send SSE to emitter {}: {}. Removing.", id, ex.getMessage());
-                emitters.remove(id);
-                emitter.completeWithError(ex);
+                clients.remove(id);
+                client.emitter().completeWithError(ex);
             }
-        });
+        }
     }
 
     /**
      * Sends a lightweight SSE comment ping every 25 seconds to keep connections alive
      * through proxies that would otherwise drop idle streams at 60–100 s.
-     * The {@code X-Accel-Buffering: no} header set in {@code SseController} ensures
-     * Nginx flushes these comments immediately without buffering.
      */
     @Scheduled(fixedRate = 25_000)
     public void sendHeartbeat() {
-        if (emitters.isEmpty()) {
+        if (clients.isEmpty()) {
             return;
         }
         SseEmitter.SseEventBuilder ping = SseEmitter.event().comment("ping");
-        emitters.forEach((id, emitter) -> {
+        clients.forEach((id, client) -> {
             try {
-                emitter.send(ping);
+                client.emitter().send(ping);
             } catch (IOException | IllegalStateException ex) {
                 log.debug("Heartbeat failed for emitter {}: {}. Removing.", id, ex.getMessage());
-                emitters.remove(id);
+                clients.remove(id);
             }
         });
-        log.trace("SSE heartbeat sent to {} client(s)", emitters.size());
+        log.trace("SSE heartbeat sent to {} client(s)", clients.size());
     }
 
-    /** Returns the number of currently connected admin clients. */
+    /** Returns the number of currently connected admin/staff clients. */
     public int connectedCount() {
-        return emitters.size();
+        return clients.size();
     }
 }

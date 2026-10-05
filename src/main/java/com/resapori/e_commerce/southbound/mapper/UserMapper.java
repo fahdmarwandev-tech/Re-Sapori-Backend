@@ -13,6 +13,8 @@ import org.mapstruct.Named;
 public interface UserMapper {
 
     @Mapping(source = "roles", target = "roles", qualifiedByName = "rolesToNames")
+    @Mapping(source = "branch.id", target = "branchId")
+    @Mapping(source = "branch.name", target = "branchName")
     UserResponse toResponse(User entity);
 
     List<UserResponse> toResponseList(List<User> entities);

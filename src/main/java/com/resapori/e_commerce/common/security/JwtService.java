@@ -41,9 +41,22 @@ public class JwtService {
                 .toList();
         extraClaims.put("roles", roles);
         
-        // Also put the user's ID if needed, here we assume CustomUserDetails
+        // Also put user's ID, name, phone, and branch info if available
         if (userDetails instanceof CustomUserDetails customUserDetails) {
-            extraClaims.put("userId", customUserDetails.getUser().getId().toString());
+            com.resapori.e_commerce.southbound.entity.User user = customUserDetails.getUser();
+            extraClaims.put("userId", user.getId().toString());
+            String fullName = ((user.getFirstName() != null ? user.getFirstName() : "") + " " + (user.getLastName() != null ? user.getLastName() : "")).trim();
+            if (!fullName.isEmpty()) {
+                extraClaims.put("name", fullName);
+            }
+            if (user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) {
+                extraClaims.put("phoneNumber", user.getPhoneNumber().trim());
+                extraClaims.put("phone", user.getPhoneNumber().trim());
+            }
+            if (user.getBranch() != null) {
+                extraClaims.put("branchId", user.getBranch().getId().toString());
+                extraClaims.put("branchName", user.getBranch().getName());
+            }
         }
 
         return buildToken(extraClaims, userDetails, accessTokenExpiration);

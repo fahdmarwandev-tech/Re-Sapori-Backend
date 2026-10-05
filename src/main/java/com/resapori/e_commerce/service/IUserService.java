@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public interface IUserService {
     UserResponse getById(UUID id);
+    UserResponse getMe();
     List<UserResponse> getAll();
     UserResponse update(UUID id, UserUpdateRequest request);
     void delete(UUID id);

@@ -28,4 +28,16 @@ public class PlaceOrderRequest {
     private String promoCode;
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
+    @com.fasterxml.jackson.annotation.JsonAlias({"phone", "phone_number"})
+    private String phoneNumber;
+    @com.fasterxml.jackson.annotation.JsonAlias({"customer_phone"})
+    private String customerPhone;
+    @com.fasterxml.jackson.annotation.JsonAlias({"customer_name", "name"})
+    private String customerName;
+
+    public String getEffectivePhoneNumber() {
+        if (phoneNumber != null && !phoneNumber.isBlank()) return phoneNumber.trim();
+        if (customerPhone != null && !customerPhone.isBlank()) return customerPhone.trim();
+        return null;
+    }
 }

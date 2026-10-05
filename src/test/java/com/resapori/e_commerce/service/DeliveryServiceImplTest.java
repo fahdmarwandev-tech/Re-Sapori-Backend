@@ -132,4 +132,24 @@ class DeliveryServiceImplTest {
         assertEquals(new BigDecimal("35.00"), res.getDeliveryFee());
         assertEquals(octoberBranch.getId(), res.getBranchId());
     }
+
+    @Test
+    @DisplayName("calculateDeliveryFee: When branch has configured zones and customer is outside, returns isCovered=false and fee=0")
+    void calculateDeliveryFee_OutsideConfiguredZones_ReturnsUncoveredWithZeroFee() {
+        // Configure October branch with a strict 3km radius zone
+        octoberBranch.setDeliveryZones("[{\"id\":\"z1\",\"name\":\"Local Zone\",\"type\":\"RADIUS\",\"radiusKm\":3.0,\"isActive\":true,\"centerLat\":29.996688,\"centerLng\":30.983078}]");
+        when(branchRepository.findByIsActiveTrue()).thenReturn(List.of(octoberBranch));
+
+        // Location 10 km away (far outside the 3km zone)
+        CalculateDeliveryFeeRequest req = CalculateDeliveryFeeRequest.builder()
+                .lat(BigDecimal.valueOf(30.0800))
+                .lng(BigDecimal.valueOf(31.0500))
+                .build();
+
+        DeliveryFeeResponse res = deliveryService.calculateDeliveryFee(req);
+
+        assertNotNull(res);
+        assertFalse(res.isCovered());
+        assertEquals(BigDecimal.ZERO, res.getDeliveryFee());
+    }
 }

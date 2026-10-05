@@ -73,3 +73,9 @@ databaseChangeLog:
       file: db/changelog/changes/36-alter-branches-add-location.sql
   - include:
       file: db/changelog/changes/37-alter-orders-add-delivery-fee.sql
+  - include:
+      file: db/changelog/changes/38-alter-users-add-branch.sql
+  - include:
+      file: db/changelog/changes/39-seed-delivery-role.sql
+  - include:
+      file: db/changelog/changes/40-alter-branches-add-delivery-zones.sql

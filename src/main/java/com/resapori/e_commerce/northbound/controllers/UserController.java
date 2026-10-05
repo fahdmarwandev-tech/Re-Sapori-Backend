@@ -17,6 +17,12 @@ public class UserController {
 
     private final IUserService service;
 
+    /** GET /api/users/me — get currently authenticated user profile. */
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getMe() {
+        return ResponseEntity.ok(service.getMe());
+    }
+
     /** GET /api/users/{id} — get user profile (ADMIN or own user). */
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getById(@PathVariable UUID id) {
@@ -24,6 +30,7 @@ public class UserController {
     }
 
     /** GET /api/users — list all users (ADMIN only). */
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());

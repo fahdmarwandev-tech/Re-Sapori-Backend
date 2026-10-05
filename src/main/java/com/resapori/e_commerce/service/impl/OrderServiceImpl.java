@@ -38,6 +38,7 @@ public class OrderServiceImpl implements IOrderService {
     private final IOrderItemRepository orderItemRepository;
     private final IMenuItemRepository menuItemRepository;
     private final IBranchRepository branchRepository;
+    private final IUserRepository userRepository;
     private final IUserAddressRepository userAddressRepository;
     private final IPromoCodeRepository promoCodeRepository;
     private final IPromoCodeRedemptionRepository promoCodeRedemptionRepository;
@@ -55,6 +56,26 @@ public class OrderServiceImpl implements IOrderService {
     public OrderResponse placeOrder(PlaceOrderRequest request) {
         validateOrderPayload(request);
         User user = getAuthenticatedUserOrThrow();
+
+        // Always associate and persist the entered contact phone number with the customer's account
+        String enteredPhone = request.getEffectivePhoneNumber();
+        if (enteredPhone != null && !enteredPhone.isBlank()) {
+            user.setPhoneNumber(enteredPhone.trim());
+            user = userRepository.save(user);
+        }
+
+        // Also associate customer name if profile name is missing
+        if (request.getCustomerName() != null && !request.getCustomerName().isBlank()) {
+            if (user.getFirstName() == null || user.getFirstName().isBlank()) {
+                String[] parts = request.getCustomerName().trim().split(" ", 2);
+                user.setFirstName(parts[0]);
+                if (parts.length > 1) {
+                    user.setLastName(parts[1]);
+                }
+                user = userRepository.save(user);
+            }
+        }
+
         Order order = initOrder(request, user);
         List<OrderItem> orderItems = new ArrayList<>(buildAllOrderItems(request));
         order.setTotalAmount(calculateTotal(orderItems));
@@ -91,6 +112,33 @@ public class OrderServiceImpl implements IOrderService {
     public List<OrderResponse> getAll() {
         List<Order> orders = orderRepository.findAllWithUserAndBranch();
         if (orders.isEmpty()) return Collections.emptyList();
+
+        if (!isAdmin()) {
+            User user = authUtil.getAuthenticatedUser();
+            if (user == null) return Collections.emptyList();
+
+            if (isCashier()) {
+                UUID branchId = user.getBranch() != null ? user.getBranch().getId() : null;
+                if (branchId == null) {
+                    return Collections.emptyList();
+                }
+                orders = orders.stream()
+                        .filter(o -> o.getBranch() != null && o.getBranch().getId().equals(branchId))
+                        .toList();
+            } else if (isDelivery()) {
+                UUID branchId = user.getBranch() != null ? user.getBranch().getId() : null;
+                if (branchId == null) {
+                    return Collections.emptyList();
+                }
+                orders = orders.stream()
+                        .filter(o -> o.getOrderType() == OrderType.DELIVERY
+                                && o.getBranch() != null && o.getBranch().getId().equals(branchId)
+                                && (o.getStatus() == OrderStatus.PREPARING || o.getStatus() == OrderStatus.READY))
+                        .toList();
+            }
+        }
+
+        if (orders.isEmpty()) return Collections.emptyList();
         Map<UUID, List<OrderItem>> itemsByOrderId = fetchItemsGroupedByOrderId(orders);
         return orders.stream()
                 .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
@@ -114,6 +162,9 @@ public class OrderServiceImpl implements IOrderService {
     public OrderResponse updateStatus(UUID id, UpdateOrderStatusRequest request) {
         Order order = orderRepository.findByIdWithUserAndBranch(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        validateOrderStatusUpdate(order, request.getStatus());
+
         OrderStatus previousStatus = order.getStatus();
         order.setStatus(request.getStatus());
         Order savedOrder = orderRepository.save(order);
@@ -169,13 +220,21 @@ public class OrderServiceImpl implements IOrderService {
                 order.setDeliveryFee(BigDecimal.ZERO);
             } else {
                 DeliveryFeeResponse feeRes = deliveryService.calculateForAddress(address.getId(), request.getBranchId());
+                if (feeRes != null && !feeRes.isCovered()) {
+                    throw new IllegalArgumentException("عذراً، العنوان المحدد يقع خارج نطاق التوصيل لجميع فروعنا (Selected address is outside our delivery zones)");
+                }
                 order.setDeliveryFee(feeRes != null && feeRes.getDeliveryFee() != null ? feeRes.getDeliveryFee() : BigDecimal.valueOf(35.00));
                 if (feeRes != null && feeRes.getBranchId() != null) {
-                    branchRepository.findById(feeRes.getBranchId()).ifPresent(order::setBranch);
+                    branchRepository.findById(feeRes.getBranchId())
+                            .filter(Branch::isActive)
+                            .ifPresent(order::setBranch);
                 }
             }
             if (order.getBranch() == null) {
                 branchRepository.findByIsActiveTrue().stream().findFirst().ifPresent(order::setBranch);
+            }
+            if (order.getBranch() == null || !order.getBranch().isActive()) {
+                throw new IllegalStateException("عذراً، لا يوجد أي فرع متاح حالياً لاستلام وتوصيل الطلبات (No active branch is currently available to fulfill orders)");
             }
         } else {
             order.setDeliveryFee(BigDecimal.ZERO);
@@ -452,10 +511,73 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private void validateOrderAccess(Order order) {
+        if (isAdmin()) return;
         User user = authUtil.getAuthenticatedUser();
-        if (!isAdmin() && (user == null || !order.getUser().getId().equals(user.getId()))) {
+        if (user == null) {
+            throw new AccessDeniedException("Must be authenticated");
+        }
+        if (isCashier() || isDelivery()) {
+            if (user.getBranch() == null || order.getBranch() == null || !order.getBranch().getId().equals(user.getBranch().getId())) {
+                throw new AccessDeniedException("Cannot access orders outside your assigned branch");
+            }
+            return;
+        }
+        if (!order.getUser().getId().equals(user.getId())) {
             throw new AccessDeniedException("Cannot access other users' orders");
         }
+    }
+
+    private void validateOrderStatusUpdate(Order order, OrderStatus newStatus) {
+        if (isAdmin()) {
+            return; // Admin has full transition control
+        }
+
+        User user = authUtil.getAuthenticatedUser();
+        if (user == null) {
+            throw new AccessDeniedException("Must be authenticated to update order status");
+        }
+
+        if (user.getBranch() == null || order.getBranch() == null || !order.getBranch().getId().equals(user.getBranch().getId())) {
+            throw new AccessDeniedException("Cannot update orders belonging to another branch");
+        }
+
+        OrderStatus prev = order.getStatus();
+
+        if (isCashier()) {
+            if (order.getOrderType() == OrderType.DELIVERY) {
+                // Cashier on delivery: only PENDING -> PREPARING
+                if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
+                    return;
+                }
+                throw new AccessDeniedException("Cashiers can only start preparation (PREPARING) on delivery orders");
+            } else {
+                // Cashier on pickup or dine-in: PENDING -> PREPARING, and PREPARING/READY -> DELIVERED (mark done)
+                if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
+                    return;
+                }
+                if ((prev == OrderStatus.PREPARING || prev == OrderStatus.READY) && newStatus == OrderStatus.DELIVERED) {
+                    return;
+                }
+                throw new AccessDeniedException("Cashiers can only start prep or mark pickup orders as completed");
+            }
+        }
+
+        if (isDelivery()) {
+            if (order.getOrderType() != OrderType.DELIVERY) {
+                throw new AccessDeniedException("Delivery staff can only update delivery orders");
+            }
+            // 1. Delivery claims order: PREPARING -> READY
+            if (prev == OrderStatus.PREPARING && newStatus == OrderStatus.READY) {
+                return;
+            }
+            // 2. Delivery marks order delivered: READY -> DELIVERED
+            if (prev == OrderStatus.READY && newStatus == OrderStatus.DELIVERED) {
+                return;
+            }
+            throw new AccessDeniedException("Delivery staff can only mark orders as READY (claimed) or DELIVERED");
+        }
+
+        throw new AccessDeniedException("Unauthorized to update order status");
     }
 
     private OrderResponse mapToResponse(Order order, List<OrderItem> items) {
@@ -474,6 +596,18 @@ public class OrderServiceImpl implements IOrderService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return false;
         return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private boolean isCashier() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_CASHIER"));
+    }
+
+    private boolean isDelivery() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DELIVERY"));
     }
 
     private PromoContext applyPromoCodeIfPresent(String code, User user, List<OrderItem> items, Order order) {

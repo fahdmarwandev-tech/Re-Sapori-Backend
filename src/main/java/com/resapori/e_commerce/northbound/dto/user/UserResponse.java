@@ -19,6 +19,8 @@ public class UserResponse {
     private String email;
     private String phoneNumber;
     private Set<String> roles;
+    private UUID branchId;
+    private String branchName;
     private boolean isActive;
     private LocalDateTime createdAt;
 }

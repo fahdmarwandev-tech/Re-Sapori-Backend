@@ -54,7 +54,9 @@ public class SseController {
         User user = authUtil.getAuthenticatedUser();
         String userId   = user != null ? user.getId().toString() : "unknown";
         String username = user != null ? user.getEmail() : "unknown";
-        UUID token = tokenStore.issue(userId, username);
+        UUID branchId   = (user != null && user.getBranch() != null) ? user.getBranch().getId() : null;
+        boolean isAdmin = authUtil.hasRole("ROLE_ADMIN");
+        UUID token = tokenStore.issue(userId, username, branchId, isAdmin);
         return ResponseEntity.ok(Map.of("token", token.toString()));
     }
 
@@ -90,9 +92,10 @@ public class SseController {
         }
 
         String emitterId = entry.userId() + "-" + UUID.randomUUID();
-        log.info("SSE client connected: user={}, emitterId={}", entry.username(), emitterId);
+        log.info("SSE client connected: user={}, emitterId={}, branchId={}, isAdmin={}",
+                entry.username(), emitterId, entry.branchId(), entry.isAdmin());
 
-        SseEmitter emitter = registry.register(emitterId);
+        SseEmitter emitter = registry.register(emitterId, entry.branchId(), entry.isAdmin());
 
         // Send an immediate "connected" event so the client knows the stream is live
         try {

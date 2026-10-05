@@ -34,9 +34,6 @@ public class BranchServiceImpl implements IBranchService {
     @Transactional(readOnly = true)
     public BranchResponse getById(UUID id) {
         Branch entity = findByIdOrThrow(id);
-        if (!entity.isActive()) {
-            throw new ResourceNotFoundException("Branch not found with id: " + id);
-        }
         return mapper.toResponse(entity);
     }
 
@@ -66,6 +63,9 @@ public class BranchServiceImpl implements IBranchService {
         entity.setLng(request.getLng());
         if (request.getIsActive() != null) {
             entity.setActive(request.getIsActive());
+        }
+        if (request.getDeliveryZones() != null) {
+            entity.setDeliveryZones(mapper.zonesToJson(request.getDeliveryZones()));
         }
         return mapper.toResponse(repository.save(entity));
     }

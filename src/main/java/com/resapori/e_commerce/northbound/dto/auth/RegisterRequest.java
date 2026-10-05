@@ -14,6 +14,9 @@ public class RegisterRequest {
     private String email;
     private String password;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"phone", "phone_number", "customerPhone", "customer_phone"})
+    private String phoneNumber;
+
     public String getEmail() {
         return email != null ? email.trim().toLowerCase() : null;
     }
