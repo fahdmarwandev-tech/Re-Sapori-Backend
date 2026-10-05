@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_DEV_URL}
-    username: ${DB_DEV_USERNAME}
-    password: ${DB_DEV_PASSWORD}
+    url: ${DB_DEV_URL:${DB_LOCAL_URL:jdbc:postgresql://localhost:5432/resaporidb}}
+    username: ${DB_DEV_USERNAME:${DB_LOCAL_USERNAME:postgres}}
+    password: ${DB_DEV_PASSWORD:${DB_LOCAL_PASSWORD:postgres}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
