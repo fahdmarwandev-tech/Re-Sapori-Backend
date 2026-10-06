@@ -26,7 +26,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DeliveryServiceImpl implements IDeliveryService {
 
-    public static final BigDecimal BASE_DISTANCE = BigDecimal.valueOf(4.0);
+    public static final BigDecimal BASE_DISTANCE = BigDecimal.valueOf(2.0);
     public static final BigDecimal BASE_FEE = BigDecimal.valueOf(35.00);
     public static final BigDecimal RATE_PER_KM = BigDecimal.valueOf(7.00);
 
