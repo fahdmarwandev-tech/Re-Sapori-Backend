@@ -480,7 +480,31 @@ public class OrderServiceImpl implements IOrderService {
         } else if (offer.getDiscountTarget() == DiscountTarget.TOTAL_BUNDLE) {
             applyTotalBundleDiscount(offer, paidContexts);
         } else {
-            applyCheapestItemDiscount(offer, paidContexts);
+            int buyQty = offer.getBuyQuantity() != null ? offer.getBuyQuantity() : 1;
+            int getQty = offer.getGetQuantity() != null ? offer.getGetQuantity() : 1;
+            int targetCount = buyQty + getQty;
+
+            Map<UUID, List<PriceContext>> bySlot = paidContexts.stream()
+                    .collect(Collectors.groupingBy(c -> c.slot().getId()));
+
+            UUID targetSlotId = bySlot.entrySet().stream()
+                    .filter(e -> e.getValue().size() >= targetCount)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+
+            if (targetSlotId != null && bySlot.size() > 1) {
+                applyCheapestItemDiscount(offer, bySlot.get(targetSlotId));
+                for (Map.Entry<UUID, List<PriceContext>> entry : bySlot.entrySet()) {
+                    if (!entry.getKey().equals(targetSlotId)) {
+                        for (PriceContext ctx : entry.getValue()) {
+                            ctx.setFinalPrice(ctx.basePrice().add(ctx.addOnsTotal()));
+                        }
+                    }
+                }
+            } else {
+                applyCheapestItemDiscount(offer, paidContexts);
+            }
         }
     }
 

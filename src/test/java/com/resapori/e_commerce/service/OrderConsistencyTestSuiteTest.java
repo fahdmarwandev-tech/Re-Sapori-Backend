@@ -1298,4 +1298,163 @@ class OrderConsistencyTestSuiteTest {
         verify(orderItemRepository).saveAll(itemsCaptor.capture());
         assertEquals("بدون بصل وزيادة جبنة - Extra crispy crust! 🍕", itemsCaptor.getValue().get(0).getNotes());
     }
+
+    // TC-27: Family Meal with Paid Sauces and Complimentary Drink
+    @Test
+    @DisplayName("TC-27: Family Meal with Paid Sauces - Sauces charged at menu price, cheapest pizza is free, drink is free")
+    void test_TC27_FamilyMealWithPaidSaucesAndFreeDrink() {
+        mockStandardOrderSaves();
+        UUID offerId = UUID.randomUUID();
+        UUID pizzaSlotId = UUID.randomUUID();
+        UUID sauceSlotId = UUID.randomUUID();
+        UUID drinkSlotId = UUID.randomUUID();
+
+        // Menu items
+        MenuItem pizza1 = new MenuItem();
+        pizza1.setId(UUID.randomUUID());
+        pizza1.setNameEn("Quattro");
+        pizza1.setCurrentPrice(BigDecimal.valueOf(450.00));
+        pizza1.setActive(true);
+        pizza1.setAvailable(true);
+
+        MenuItem pizza2 = new MenuItem();
+        pizza2.setId(UUID.randomUUID());
+        pizza2.setNameEn("Creamy Salmon");
+        pizza2.setCurrentPrice(BigDecimal.valueOf(520.00));
+        pizza2.setActive(true);
+        pizza2.setAvailable(true);
+
+        MenuItem pizza3 = new MenuItem();
+        pizza3.setId(UUID.randomUUID());
+        pizza3.setNameEn("Burrata");
+        pizza3.setCurrentPrice(BigDecimal.valueOf(450.00));
+        pizza3.setActive(true);
+        pizza3.setAvailable(true);
+
+        MenuItem pizza4 = new MenuItem();
+        pizza4.setId(UUID.randomUUID());
+        pizza4.setNameEn("Vegetarian");
+        pizza4.setCurrentPrice(BigDecimal.valueOf(320.00));
+        pizza4.setActive(true);
+        pizza4.setAvailable(true);
+
+        MenuItem sauce1 = new MenuItem();
+        sauce1.setId(UUID.randomUUID());
+        sauce1.setNameEn("Barbecue");
+        sauce1.setCurrentPrice(BigDecimal.valueOf(20.00));
+        sauce1.setActive(true);
+        sauce1.setAvailable(true);
+
+        MenuItem sauce2 = new MenuItem();
+        sauce2.setId(UUID.randomUUID());
+        sauce2.setNameEn("Caesar Dressing");
+        sauce2.setCurrentPrice(BigDecimal.valueOf(30.00));
+        sauce2.setActive(true);
+        sauce2.setAvailable(true);
+
+        MenuItem drink1 = new MenuItem();
+        drink1.setId(UUID.randomUUID());
+        drink1.setNameEn("Maxi Cola 1L");
+        drink1.setCurrentPrice(BigDecimal.valueOf(30.00));
+        drink1.setActive(true);
+        drink1.setAvailable(true);
+
+        // Offer & Slots
+        OfferSlot pizzaSlot = new OfferSlot();
+        pizzaSlot.setId(pizzaSlotId);
+        pizzaSlot.setSlotNameEn("Choose 4 Pizzas");
+        pizzaSlot.setQuantity(4);
+        pizzaSlot.setFree(false);
+
+        OfferSlot sauceSlot = new OfferSlot();
+        sauceSlot.setId(sauceSlotId);
+        sauceSlot.setSlotNameEn("Choose 2 Sauces");
+        sauceSlot.setQuantity(2);
+        sauceSlot.setFree(false); // PAID!
+
+        OfferSlot drinkSlot = new OfferSlot();
+        drinkSlot.setId(drinkSlotId);
+        drinkSlot.setSlotNameEn("Free 1L Drink");
+        drinkSlot.setQuantity(1);
+        drinkSlot.setFree(true); // FREE!
+
+        Offer familyOffer = new Offer();
+        familyOffer.setId(offerId);
+        familyOffer.setNameEn("Family Meal");
+        familyOffer.setDiscountTarget(DiscountTarget.CHEAPEST_ITEM);
+        familyOffer.setBuyQuantity(3);
+        familyOffer.setGetQuantity(1);
+        familyOffer.setDiscountPercentage(BigDecimal.valueOf(100.00));
+        familyOffer.setActive(true);
+        familyOffer.setSlots(List.of(pizzaSlot, sauceSlot, drinkSlot));
+
+        when(offerRepository.findByIdWithSlots(offerId)).thenReturn(Optional.of(familyOffer));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizza1, pizza2, pizza3, pizza4, sauce1, sauce2, drink1));
+
+        PlaceOrderRequest req = new PlaceOrderRequest();
+        req.setOrderType(OrderType.PICKUP);
+        req.setBranchId(testBranch.getId());
+        req.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+
+        OrderOfferInput offerInput = new OrderOfferInput();
+        offerInput.setOfferId(offerId);
+        offerInput.setSelections(List.of(
+                OfferSelectionInput.builder().slotId(pizzaSlotId).menuItemId(pizza1.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(pizzaSlotId).menuItemId(pizza2.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(pizzaSlotId).menuItemId(pizza3.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(pizzaSlotId).menuItemId(pizza4.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(sauceSlotId).menuItemId(sauce1.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(sauceSlotId).menuItemId(sauce2.getId()).quantity(1).build(),
+                OfferSelectionInput.builder().slotId(drinkSlotId).menuItemId(drink1.getId()).quantity(1).build()
+        ));
+        req.setOffers(List.of(offerInput));
+
+        orderService.placeOrder(req);
+
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(itemsCaptor.capture());
+        List<OrderItem> savedItems = itemsCaptor.getValue();
+        assertEquals(7, savedItems.size());
+
+        // Check Vegetarian is cheapest pizza and FREE
+        OrderItem vegPizza = savedItems.stream()
+                .filter(i -> i.getMenuItem().getNameEn().equals("Vegetarian"))
+                .findFirst().orElseThrow();
+        assertTrue(vegPizza.isFree());
+        assertEquals(0, BigDecimal.ZERO.compareTo(vegPizza.getUnitPriceAtPurchase()));
+
+        // Check Drink is FREE
+        OrderItem drink = savedItems.stream()
+                .filter(i -> i.getMenuItem().getNameEn().equals("Maxi Cola 1L"))
+                .findFirst().orElseThrow();
+        assertTrue(drink.isFree());
+        assertEquals(0, BigDecimal.ZERO.compareTo(drink.getUnitPriceAtPurchase()));
+
+        // Check Sauces are PAID at menu price (20 and 30)
+        OrderItem bbq = savedItems.stream()
+                .filter(i -> i.getMenuItem().getNameEn().equals("Barbecue"))
+                .findFirst().orElseThrow();
+        assertFalse(bbq.isFree());
+        assertEquals(0, BigDecimal.valueOf(20.00).compareTo(bbq.getUnitPriceAtPurchase()));
+
+        OrderItem caesar = savedItems.stream()
+                .filter(i -> i.getMenuItem().getNameEn().equals("Caesar Dressing"))
+                .findFirst().orElseThrow();
+        assertFalse(caesar.isFree());
+        assertEquals(0, BigDecimal.valueOf(30.00).compareTo(caesar.getUnitPriceAtPurchase()));
+
+        // Check paid pizzas (520 + 450 + 450)
+        OrderItem salmon = savedItems.stream()
+                .filter(i -> i.getMenuItem().getNameEn().equals("Creamy Salmon"))
+                .findFirst().orElseThrow();
+        assertFalse(salmon.isFree());
+        assertEquals(0, BigDecimal.valueOf(520.00).compareTo(salmon.getUnitPriceAtPurchase()));
+
+        // Check Order total amount
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        // Total = 520 + 450 + 450 + 0 + 20 + 30 + 0 = 1470.00
+        BigDecimal expectedTotal = BigDecimal.valueOf(1470.00);
+        assertEquals(0, expectedTotal.compareTo(orderCaptor.getValue().getTotalAmount()));
+    }
 }
