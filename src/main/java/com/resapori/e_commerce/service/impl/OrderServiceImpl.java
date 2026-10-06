@@ -216,11 +216,15 @@ public class OrderServiceImpl implements IOrderService {
             UserAddress address = resolveDeliveryAddress(request.getAddressId(), user.getId());
             order.setDeliveryAddress(formatAddress(address));
 
-            boolean isCarDelivery = (address.getLabel() != null && address.getLabel().equalsIgnoreCase("Car Delivery"))
-                    || (address.getStreet() != null && address.getStreet().startsWith("Car Delivery"));
+            boolean isCarDelivery = isCarDeliveryOrder(request, address);
 
             if (isCarDelivery) {
                 order.setDeliveryFee(BigDecimal.ZERO);
+                if (request.getBranchId() != null) {
+                    branchRepository.findById(request.getBranchId())
+                            .filter(Branch::isActive)
+                            .ifPresent(order::setBranch);
+                }
             } else {
                 DeliveryFeeResponse feeRes = deliveryService.calculateForAddress(address.getId(), request.getBranchId());
                 if (feeRes != null && !feeRes.isCovered()) {
@@ -264,6 +268,31 @@ public class OrderServiceImpl implements IOrderService {
         String floor = a.getFloor() != null ? a.getFloor() : "-";
         String apt = a.getApartment() != null ? a.getApartment() : "-";
         return String.format("%s, %s, %s, Floor: %s, Apt: %s", a.getStreet(), a.getCity(), district, floor, apt);
+    }
+
+    private boolean isCarDeliveryOrder(PlaceOrderRequest request, UserAddress address) {
+        if (isCarDeliveryAddress(address)) {
+            return true;
+        }
+        if (request != null && request.getOrderNotes() != null) {
+            String notes = request.getOrderNotes().toLowerCase();
+            return notes.contains("car delivery") || notes.contains("car pickup")
+                    || notes.contains("استلام من السيارة") || notes.contains("استلام بالسيارة")
+                    || notes.contains("لوحة السيارة");
+        }
+        return false;
+    }
+
+    private boolean isCarDeliveryAddress(UserAddress address) {
+        if (address == null) return false;
+        String label = address.getLabel() != null ? address.getLabel().toLowerCase().trim() : "";
+        String street = address.getStreet() != null ? address.getStreet().toLowerCase().trim() : "";
+        String district = address.getDistrict() != null ? address.getDistrict().toLowerCase().trim() : "";
+        return label.contains("car") || label.contains("سيارة") || label.contains("استلام")
+                || street.contains("car delivery") || street.contains("car pickup")
+                || street.contains("استلام بالسيارة") || street.contains("استلام من السيارة")
+                || street.contains("توصيل للسيارة") || street.contains("لوحة") || street.contains("plate:")
+                || district.contains("car delivery") || district.contains("استلام بالسيارة");
     }
 
     private Branch resolveBranch(UUID branchId) {
