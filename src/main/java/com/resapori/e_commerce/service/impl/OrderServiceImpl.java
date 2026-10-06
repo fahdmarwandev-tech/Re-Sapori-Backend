@@ -44,6 +44,7 @@ public class OrderServiceImpl implements IOrderService {
     private final IPromoCodeRedemptionRepository promoCodeRedemptionRepository;
     private final IOfferRepository offerRepository;
     private final IMenuAddOnRepository menuAddOnRepository;
+    private final IOrderItemAddOnRepository orderItemAddOnRepository;
     private final IDeliveryService deliveryService;
 
     private final OrderMapper orderMapper;
@@ -140,8 +141,9 @@ public class OrderServiceImpl implements IOrderService {
 
         if (orders.isEmpty()) return Collections.emptyList();
         Map<UUID, List<OrderItem>> itemsByOrderId = fetchItemsGroupedByOrderId(orders);
+        Map<UUID, List<OrderItemAddOn>> addOnsByItemId = fetchAddOnsGroupedByOrderItemId(itemsByOrderId);
         return orders.stream()
-                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
+                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId))
                 .toList();
     }
 
@@ -152,8 +154,9 @@ public class OrderServiceImpl implements IOrderService {
         List<Order> orders = orderRepository.findByUserIdWithUserAndBranch(user.getId());
         if (orders.isEmpty()) return Collections.emptyList();
         Map<UUID, List<OrderItem>> itemsByOrderId = fetchItemsGroupedByOrderId(orders);
+        Map<UUID, List<OrderItemAddOn>> addOnsByItemId = fetchAddOnsGroupedByOrderItemId(itemsByOrderId);
         return orders.stream()
-                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
+                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId))
                 .toList();
     }
 
@@ -240,6 +243,7 @@ public class OrderServiceImpl implements IOrderService {
             order.setDeliveryFee(BigDecimal.ZERO);
             order.setBranch(resolveBranch(request.getBranchId()));
         }
+        order.setOrderNotes(request.getOrderNotes());
         return order;
     }
 
@@ -290,12 +294,20 @@ public class OrderServiceImpl implements IOrderService {
         Map<UUID, MenuItem> menuItems = menuItemRepository.findAllById(menuItemIds).stream()
                 .collect(Collectors.toMap(MenuItem::getId, m -> m));
 
+        List<UUID> allAddOnIds = request.getItems().stream()
+                .filter(i -> i.getAddOnIds() != null)
+                .flatMap(i -> i.getAddOnIds().stream())
+                .toList();
+        Map<UUID, MenuAddOn> addOnMap = allAddOnIds.isEmpty() ? Collections.emptyMap() :
+                menuAddOnRepository.findAllById(allAddOnIds).stream()
+                        .collect(Collectors.toMap(MenuAddOn::getId, a -> a));
+
         return request.getItems().stream()
-                .map(input -> createOrderItem(input, menuItems.get(input.getMenuItemId())))
+                .map(input -> createOrderItem(input, menuItems.get(input.getMenuItemId()), addOnMap))
                 .toList();
     }
 
-    private OrderItem createOrderItem(OrderItemInput input, MenuItem menuItem) {
+    private OrderItem createOrderItem(OrderItemInput input, MenuItem menuItem, Map<UUID, MenuAddOn> addOnMap) {
         if (menuItem == null || !menuItem.isActive() || !menuItem.isAvailable()) {
             throw new IllegalArgumentException("Menu item unavailable: " + input.getMenuItemId());
         }
@@ -303,13 +315,37 @@ public class OrderServiceImpl implements IOrderService {
         if (size == ItemSize.MINI && menuItem.getMiniPrice() == null) {
             throw new IllegalArgumentException("Item \"" + menuItem.getNameEn() + "\" has no mini size");
         }
-        BigDecimal unitPrice = resolveItemPrice(menuItem, size);
+        BigDecimal basePrice = resolveItemPrice(menuItem, size);
+        BigDecimal addOnsTotal = BigDecimal.ZERO;
+        List<OrderItemAddOn> itemAddOns = new ArrayList<>();
+
+        if (input.getAddOnIds() != null && !input.getAddOnIds().isEmpty()) {
+            for (UUID addOnId : input.getAddOnIds()) {
+                MenuAddOn addOn = addOnMap.get(addOnId);
+                if (addOn != null) {
+                    BigDecimal price = addOn.getPrice() != null ? addOn.getPrice() : BigDecimal.ZERO;
+                    addOnsTotal = addOnsTotal.add(price);
+
+                    OrderItemAddOn itemAddOn = new OrderItemAddOn();
+                    itemAddOn.setAddOn(addOn);
+                    itemAddOn.setNameEn(addOn.getNameEn());
+                    itemAddOn.setNameAr(addOn.getNameAr());
+                    itemAddOn.setPrice(price);
+                    itemAddOns.add(itemAddOn);
+                }
+            }
+        }
 
         OrderItem item = new OrderItem();
         item.setMenuItem(menuItem);
         item.setQuantity(input.getQuantity());
         item.setSize(size);
-        item.setUnitPriceAtPurchase(unitPrice);
+        item.setUnitPriceAtPurchase(basePrice.add(addOnsTotal));
+        item.setNotes(input.getNotes());
+        for (OrderItemAddOn addOnEntity : itemAddOns) {
+            addOnEntity.setOrderItem(item);
+            item.getAddOns().add(addOnEntity);
+        }
         return item;
     }
 
@@ -353,7 +389,7 @@ public class OrderServiceImpl implements IOrderService {
         List<PriceContext> contexts = buildSelectionContexts(selections, slotMap, itemMap, addOnMap);
         applyOfferPricing(offer, contexts);
         return contexts.stream()
-                .map(ctx -> createOfferOrderItem(ctx, offer, bundleGroupId))
+                .map(ctx -> createOfferOrderItem(ctx, offer, bundleGroupId, addOnMap))
                 .toList();
     }
 
@@ -387,7 +423,7 @@ public class OrderServiceImpl implements IOrderService {
             BigDecimal base = (size == ItemSize.MINI && item.getMiniPrice() != null) ? item.getMiniPrice() : item.getCurrentPrice();
             int qty = sel.getQuantity() != null && sel.getQuantity() > 0 ? sel.getQuantity() : 1;
             for (int i = 0; i < qty; i++) {
-                contexts.add(new PriceContext(slot, item, size, base, addOns, BigDecimal.ZERO));
+                contexts.add(new PriceContext(slot, item, size, base, addOns, BigDecimal.ZERO, sel.getAddOnIds(), sel.getNotes(), slot.isFree()));
             }
         }
         return contexts;
@@ -483,10 +519,13 @@ public class OrderServiceImpl implements IOrderService {
             BigDecimal factor = isDiscounted ? BigDecimal.ONE.subtract(pct) : BigDecimal.ONE;
             BigDecimal base = ctx.basePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
             ctx.setFinalPrice(base.add(ctx.addOnsTotal()));
+            if (isDiscounted && pct.compareTo(BigDecimal.ONE) >= 0) {
+                ctx.setFree(true);
+            }
         }
     }
 
-    private OrderItem createOfferOrderItem(PriceContext ctx, Offer offer, UUID bundleGroupId) {
+    private OrderItem createOfferOrderItem(PriceContext ctx, Offer offer, UUID bundleGroupId, Map<UUID, MenuAddOn> addOnMap) {
         OrderItem item = new OrderItem();
         item.setMenuItem(ctx.item());
         item.setQuantity(1);
@@ -494,7 +533,23 @@ public class OrderServiceImpl implements IOrderService {
         item.setUnitPriceAtPurchase(ctx.finalPrice());
         item.setOffer(offer);
         item.setBundleGroupId(bundleGroupId);
-        item.setFree(ctx.slot().isFree());
+        item.setFree(ctx.isFree() || ctx.slot().isFree());
+        item.setNotes(ctx.notes());
+
+        if (ctx.addOnIds() != null && !ctx.addOnIds().isEmpty()) {
+            for (UUID addOnId : ctx.addOnIds()) {
+                MenuAddOn addOn = addOnMap.get(addOnId);
+                if (addOn != null) {
+                    OrderItemAddOn entity = new OrderItemAddOn();
+                    entity.setOrderItem(item);
+                    entity.setAddOn(addOn);
+                    entity.setNameEn(addOn.getNameEn());
+                    entity.setNameAr(addOn.getNameAr());
+                    entity.setPrice(addOn.getPrice() != null ? addOn.getPrice() : BigDecimal.ZERO);
+                    item.getAddOns().add(entity);
+                }
+            }
+        }
         return item;
     }
 
@@ -508,6 +563,18 @@ public class OrderServiceImpl implements IOrderService {
         List<UUID> orderIds = orders.stream().map(Order::getId).toList();
         List<OrderItem> items = orderItemRepository.findByOrderIdInWithMenuItem(orderIds);
         return items.stream().collect(Collectors.groupingBy(oi -> oi.getOrder().getId()));
+    }
+
+    private Map<UUID, List<OrderItemAddOn>> fetchAddOnsGroupedByOrderItemId(Map<UUID, List<OrderItem>> itemsByOrderId) {
+        List<UUID> allItemIds = itemsByOrderId.values().stream()
+                .flatMap(List::stream)
+                .map(OrderItem::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (allItemIds.isEmpty()) return Collections.emptyMap();
+        return orderItemAddOnRepository.findByOrderItemIdIn(allItemIds).stream()
+                .filter(a -> a.getOrderItem() != null && a.getOrderItem().getId() != null)
+                .collect(Collectors.groupingBy(a -> a.getOrderItem().getId()));
     }
 
     private void validateOrderAccess(Order order) {
@@ -581,13 +648,83 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private OrderResponse mapToResponse(Order order, List<OrderItem> items) {
+        return mapToResponse(order, items, null);
+    }
+
+    private OrderResponse mapToResponse(Order order, List<OrderItem> items, Map<UUID, List<OrderItemAddOn>> preloadedAddOns) {
         OrderResponse response = orderMapper.toResponse(order);
+        if (order.getOrderNotes() != null) {
+            response.setOrderNotes(order.getOrderNotes());
+            response.setNotes(order.getOrderNotes());
+        }
+
+        List<UUID> itemIds = items.stream().map(OrderItem::getId).filter(Objects::nonNull).toList();
+        Map<UUID, List<OrderItemAddOn>> addOnsByItemId = preloadedAddOns;
+        if (addOnsByItemId == null && !itemIds.isEmpty()) {
+            List<OrderItemAddOn> allAddOns = orderItemAddOnRepository.findByOrderItemIdIn(itemIds);
+            addOnsByItemId = allAddOns.stream()
+                    .filter(a -> a.getOrderItem() != null && a.getOrderItem().getId() != null)
+                    .collect(Collectors.groupingBy(a -> a.getOrderItem().getId()));
+        }
+
+        final Map<UUID, List<OrderItemAddOn>> finalAddOnsMap = addOnsByItemId;
+
         List<OrderItemResponse> itemResponses = items.stream().map(item -> {
             OrderItemResponse itemRes = orderItemMapper.toResponse(item);
             BigDecimal price = item.getUnitPriceAtPurchase() != null ? item.getUnitPriceAtPurchase() : BigDecimal.ZERO;
             itemRes.setLineTotal(price.multiply(BigDecimal.valueOf(item.getQuantity())));
+            itemRes.setNotes(item.getNotes());
+
+            List<OrderItemAddOn> addOnEntities = Collections.emptyList();
+            if (item.getId() != null && finalAddOnsMap != null && finalAddOnsMap.containsKey(item.getId())) {
+                addOnEntities = finalAddOnsMap.get(item.getId());
+            } else if (item.getAddOns() != null && !item.getAddOns().isEmpty()) {
+                addOnEntities = item.getAddOns();
+            }
+
+            if (!addOnEntities.isEmpty()) {
+                List<OrderItemAddOnResponse> addOnResponses = addOnEntities.stream()
+                        .map(a -> OrderItemAddOnResponse.builder()
+                                .id(a.getId())
+                                .addOnId(a.getAddOn() != null ? a.getAddOn().getId() : null)
+                                .nameEn(a.getNameEn())
+                                .nameAr(a.getNameAr())
+                                .price(a.getPrice())
+                                .build())
+                        .toList();
+                itemRes.setAddOns(addOnResponses);
+            } else {
+                itemRes.setAddOns(Collections.emptyList());
+            }
+
+            StringBuilder detailsBuilder = new StringBuilder();
+            if (item.getSize() == ItemSize.MINI) {
+                detailsBuilder.append("Mini");
+            }
+            if (item.isFree()) {
+                if (!detailsBuilder.isEmpty()) detailsBuilder.append(" | ");
+                detailsBuilder.append("Complimentary / Free");
+            }
+            if (item.getOffer() != null) {
+                if (!detailsBuilder.isEmpty()) detailsBuilder.append(" | ");
+                detailsBuilder.append("Offer: ").append(item.getOffer().getNameEn());
+            }
+            if (itemRes.getAddOns() != null && !itemRes.getAddOns().isEmpty()) {
+                if (!detailsBuilder.isEmpty()) detailsBuilder.append(" | ");
+                String addOnsStr = itemRes.getAddOns().stream()
+                        .map(a -> a.getNameEn() + (a.getPrice() != null && a.getPrice().compareTo(BigDecimal.ZERO) > 0 ? " (+" + a.getPrice() + " EGP)" : ""))
+                        .collect(Collectors.joining(", "));
+                detailsBuilder.append("Add-ons: ").append(addOnsStr);
+            }
+            if (item.getNotes() != null && !item.getNotes().isBlank()) {
+                if (!detailsBuilder.isEmpty()) detailsBuilder.append(" | ");
+                detailsBuilder.append("Note: ").append(item.getNotes().trim());
+            }
+            itemRes.setDetails(detailsBuilder.isEmpty() ? null : detailsBuilder.toString());
+
             return itemRes;
         }).toList();
+
         response.setItems(itemResponses);
         return response;
     }
@@ -655,7 +792,12 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private void persistOrderItems(Order savedOrder, List<OrderItem> items) {
-        items.forEach(item -> item.setOrder(savedOrder));
+        items.forEach(item -> {
+            item.setOrder(savedOrder);
+            if (item.getAddOns() != null) {
+                item.getAddOns().forEach(addon -> addon.setOrderItem(item));
+            }
+        });
         orderItemRepository.saveAll(items);
     }
 
@@ -681,6 +823,9 @@ public class OrderServiceImpl implements IOrderService {
         private final BigDecimal basePrice;
         private final BigDecimal addOnsTotal;
         private BigDecimal finalPrice;
+        private final List<UUID> addOnIds;
+        private final String notes;
+        private boolean isFree;
 
         public OfferSlot slot() { return slot; }
         public MenuItem item() { return item; }
@@ -688,6 +833,11 @@ public class OrderServiceImpl implements IOrderService {
         public BigDecimal basePrice() { return basePrice; }
         public BigDecimal addOnsTotal() { return addOnsTotal; }
         public BigDecimal finalPrice() { return finalPrice; }
+        public void setFinalPrice(BigDecimal finalPrice) { this.finalPrice = finalPrice; }
+        public List<UUID> addOnIds() { return addOnIds; }
+        public String notes() { return notes; }
+        public boolean isFree() { return isFree; }
+        public void setFree(boolean isFree) { this.isFree = isFree; }
     }
 
     private record PromoContext(PromoCode promoCode, BigDecimal discountApplied) {}

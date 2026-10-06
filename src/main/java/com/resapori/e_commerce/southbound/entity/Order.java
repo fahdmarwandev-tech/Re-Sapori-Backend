@@ -68,4 +68,7 @@ public class Order extends BaseEntity {
     @Column(name = "paymob_transaction_id")
     private String paymobTransactionId;
 
+    @Column(name = "order_notes")
+    private String orderNotes;
+
 }

@@ -26,4 +26,6 @@ public class OrderItemInput {
      */
     @Builder.Default
     private ItemSize size = ItemSize.REGULAR;
+    private java.util.List<UUID> addOnIds;
+    private String notes;
 }

@@ -6,7 +6,7 @@ import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", builder = @org.mapstruct.Builder(disableBuilder = true))
 public interface OrderItemMapper {
 
     @Mapping(source = "menuItem.id", target = "menuItemId")
@@ -14,7 +14,10 @@ public interface OrderItemMapper {
     @Mapping(source = "menuItem.nameAr", target = "nameAr")
     @Mapping(source = "offer.id", target = "offerId")
     @Mapping(source = "offer.nameEn", target = "offerName")
-    @Mapping(source = "free", target = "isFree")
+    @Mapping(source = "free", target = "free")
+    @Mapping(source = "notes", target = "notes")
+    @Mapping(target = "addOns", ignore = true)
+    @Mapping(target = "details", ignore = true)
     @Mapping(target = "lineTotal", ignore = true)
     OrderItemResponse toResponse(OrderItem entity);
 

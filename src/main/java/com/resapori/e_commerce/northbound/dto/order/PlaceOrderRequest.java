@@ -34,6 +34,8 @@ public class PlaceOrderRequest {
     private String customerPhone;
     @com.fasterxml.jackson.annotation.JsonAlias({"customer_name", "name"})
     private String customerName;
+    @com.fasterxml.jackson.annotation.JsonAlias({"order_notes", "notes"})
+    private String orderNotes;
 
     public String getEffectivePhoneNumber() {
         if (phoneNumber != null && !phoneNumber.isBlank()) return phoneNumber.trim();

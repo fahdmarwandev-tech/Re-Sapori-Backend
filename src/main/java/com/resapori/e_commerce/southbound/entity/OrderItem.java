@@ -52,4 +52,10 @@ public class OrderItem extends BaseEntity {
     @Column(name = "is_free", nullable = false)
     private boolean isFree = false;
 
+    @Column(name = "notes")
+    private String notes;
+
+    @jakarta.persistence.OneToMany(mappedBy = "orderItem", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.LAZY)
+    private java.util.List<OrderItemAddOn> addOns = new java.util.ArrayList<>();
+
 }

@@ -24,5 +24,9 @@ public class OrderItemResponse {
     private UUID offerId;
     private String offerName;
     private UUID bundleGroupId;
+    @com.fasterxml.jackson.annotation.JsonProperty("isFree")
     private boolean isFree;
+    private String notes;
+    private String details;
+    private java.util.List<OrderItemAddOnResponse> addOns;
 }

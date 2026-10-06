@@ -24,4 +24,5 @@ public class OfferSelectionInput {
     @Builder.Default
     private ItemSize size = ItemSize.REGULAR;
     private List<UUID> addOnIds;
+    private String notes;
 }

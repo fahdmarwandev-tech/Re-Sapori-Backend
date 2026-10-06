@@ -15,6 +15,8 @@ public interface OrderMapper {
     @Mapping(target = "customerName", expression = "java(formatCustomerName(entity))")
     @Mapping(source = "user.email", target = "customerEmail")
     @Mapping(source = "user.phoneNumber", target = "customerPhone")
+    @Mapping(source = "orderNotes", target = "orderNotes")
+    @Mapping(source = "orderNotes", target = "notes")
     @Mapping(target = "items", ignore = true)
     OrderResponse toResponse(Order entity);
 

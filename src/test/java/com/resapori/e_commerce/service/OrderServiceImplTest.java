@@ -50,6 +50,8 @@ class OrderServiceImplTest {
     @Mock
     private IMenuAddOnRepository menuAddOnRepository;
     @Mock
+    private IOrderItemAddOnRepository orderItemAddOnRepository;
+    @Mock
     private OrderMapper orderMapper;
     @Mock
     private OrderItemMapper orderItemMapper;
@@ -70,6 +72,7 @@ class OrderServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
         testUser = new User();
         testUser.setId(UUID.randomUUID());
         testUser.setEmail("user@example.com");
@@ -93,6 +96,11 @@ class OrderServiceImplTest {
         pestoItem.setCurrentPrice(BigDecimal.valueOf(480.00));
         pestoItem.setActive(true);
         pestoItem.setAvailable(true);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -568,5 +576,335 @@ class OrderServiceImplTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(saved.getDeliveryFee()));
         // Items: 240.00 + Delivery Fee: 0.00 = 240.00
         assertEquals(0, new BigDecimal("240.00").compareTo(saved.getTotalAmount()));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Persists regular item add-ons and notes and includes them in total amount")
+    void placeOrder_RegularItemWithAddOnsAndNotes() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenAnswer(i -> {
+            OrderItem oi = i.getArgument(0);
+            return OrderItemResponse.builder()
+                    .nameEn(oi.getMenuItem().getNameEn())
+                    .quantity(oi.getQuantity())
+                    .unitPriceAtPurchase(oi.getUnitPriceAtPurchase())
+                    .build();
+        });
+
+        UUID addOn1Id = UUID.randomUUID();
+        UUID addOn2Id = UUID.randomUUID();
+        MenuAddOn cheese = new MenuAddOn();
+        cheese.setId(addOn1Id);
+        cheese.setNameEn("Extra Cheese");
+        cheese.setPrice(BigDecimal.valueOf(15.00));
+
+        MenuAddOn garlic = new MenuAddOn();
+        garlic.setId(addOn2Id);
+        garlic.setNameEn("Garlic Sauce");
+        garlic.setPrice(BigDecimal.valueOf(10.00));
+
+        when(menuAddOnRepository.findAllById(any())).thenReturn(List.of(cheese, garlic));
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setOrderNotes("Customer general note: call on arrival");
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(2);
+        itemInput.setSize(ItemSize.REGULAR);
+        itemInput.setAddOnIds(List.of(addOn1Id, addOn2Id));
+        itemInput.setNotes("Item note: extra crispy");
+        request.setItems(List.of(itemInput));
+
+        OrderResponse response = orderService.placeOrder(request);
+
+        assertNotNull(response);
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        Order savedOrder = orderCaptor.getValue();
+        assertEquals("Customer general note: call on arrival", savedOrder.getOrderNotes());
+
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(itemsCaptor.capture());
+        List<OrderItem> savedItems = itemsCaptor.getValue();
+        assertEquals(1, savedItems.size());
+        OrderItem savedItem = savedItems.get(0);
+
+        // Unit price = discounted base (240.00) + 15.00 + 10.00 = 265.00
+        assertEquals(0, BigDecimal.valueOf(265.00).compareTo(savedItem.getUnitPriceAtPurchase()));
+        assertEquals("Item note: extra crispy", savedItem.getNotes());
+        assertEquals(2, savedItem.getAddOns().size());
+
+        // Order total = 265.00 * 2 = 530.00
+        assertEquals(0, BigDecimal.valueOf(530.00).compareTo(savedOrder.getTotalAmount()));
+    }
+
+    @Test
+    @DisplayName("getById: Populates add-ons, notes, and formatted details in response")
+    void getById_PopulatesAddOnsAndDetails() {
+        Order order = new Order();
+        order.setId(UUID.randomUUID());
+        order.setUser(testUser);
+        order.setBranch(testBranch);
+        order.setOrderNotes("Door code 1234");
+        order.setStatus(OrderStatus.PENDING);
+        order.setOrderType(OrderType.PICKUP);
+
+        when(orderRepository.findByIdWithUserAndBranch(order.getId())).thenReturn(Optional.of(order));
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+
+        OrderItem item = new OrderItem();
+        item.setId(UUID.randomUUID());
+        item.setOrder(order);
+        item.setMenuItem(pizzaItem);
+        item.setQuantity(1);
+        item.setSize(ItemSize.REGULAR);
+        item.setUnitPriceAtPurchase(BigDecimal.valueOf(255.00));
+        item.setNotes("No oregano");
+
+        when(orderItemRepository.findByOrderIdWithMenuItem(order.getId())).thenReturn(List.of(item));
+
+        OrderItemAddOn addOn = new OrderItemAddOn();
+        addOn.setId(UUID.randomUUID());
+        addOn.setOrderItem(item);
+        addOn.setNameEn("Extra Mozzarella");
+        addOn.setPrice(new BigDecimal("15.00"));
+
+        when(orderItemAddOnRepository.findByOrderItemIdIn(List.of(item.getId()))).thenReturn(List.of(addOn));
+        when(orderMapper.toResponse(order)).thenReturn(OrderResponse.builder().id(order.getId()).build());
+        when(orderItemMapper.toResponse(item)).thenReturn(OrderItemResponse.builder()
+                .id(item.getId())
+                .nameEn(pizzaItem.getNameEn())
+                .quantity(item.getQuantity())
+                .unitPriceAtPurchase(item.getUnitPriceAtPurchase())
+                .build());
+
+        OrderResponse res = orderService.getById(order.getId());
+        assertNotNull(res);
+        assertEquals("Door code 1234", res.getOrderNotes());
+        assertEquals(1, res.getItems().size());
+        OrderItemResponse itemRes = res.getItems().get(0);
+        assertEquals("No oregano", itemRes.getNotes());
+        assertEquals(1, itemRes.getAddOns().size());
+        assertEquals("Extra Mozzarella", itemRes.getAddOns().get(0).getNameEn());
+        assertNotNull(itemRes.getDetails());
+        assertTrue(itemRes.getDetails().contains("Add-ons: Extra Mozzarella (+15.00 EGP)"));
+        assertTrue(itemRes.getDetails().contains("Note: No oregano"));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Fixed price offer with slot add-ons and notes attaches add-ons and calculates total correctly")
+    void placeOrder_FixedPriceOfferWithSlotAddOnsAndNotes() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenAnswer(i -> {
+            OrderItem oi = i.getArgument(0);
+            return OrderItemResponse.builder()
+                    .nameEn(oi.getMenuItem().getNameEn())
+                    .bundleGroupId(oi.getBundleGroupId())
+                    .unitPriceAtPurchase(oi.getUnitPriceAtPurchase())
+                    .notes(oi.getNotes())
+                    .build();
+        });
+
+        UUID offerId = UUID.randomUUID();
+        UUID slot1Id = UUID.randomUUID();
+        UUID slot2Id = UUID.randomUUID();
+
+        OfferSlot slot1 = new OfferSlot();
+        slot1.setId(slot1Id);
+        slot1.setSlotNameEn("Main Dish");
+        slot1.setQuantity(1);
+        slot1.setFree(false);
+
+        OfferSlot slot2 = new OfferSlot();
+        slot2.setId(slot2Id);
+        slot2.setSlotNameEn("Side Dish");
+        slot2.setQuantity(1);
+        slot2.setFree(false);
+
+        Offer offer = new Offer();
+        offer.setId(offerId);
+        offer.setNameEn("Chef Combo");
+        offer.setActive(true);
+        offer.setDiscountTarget(DiscountTarget.FIXED_PRICE);
+        offer.setFixedPrice(BigDecimal.valueOf(350.00));
+        offer.setSlots(List.of(slot1, slot2));
+
+        when(offerRepository.findByIdWithSlots(offerId)).thenReturn(Optional.of(offer));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem, pestoItem));
+
+        UUID addOnId = UUID.randomUUID();
+        MenuAddOn sauce = new MenuAddOn();
+        sauce.setId(addOnId);
+        sauce.setNameEn("Truffle Dip");
+        sauce.setPrice(BigDecimal.valueOf(25.00));
+
+        when(menuAddOnRepository.findAllById(any())).thenReturn(List.of(sauce));
+
+        OfferSelectionInput sel1 = OfferSelectionInput.builder()
+                .slotId(slot1Id)
+                .menuItemId(pizzaItem.getId())
+                .quantity(1)
+                .size(ItemSize.REGULAR)
+                .addOnIds(List.of(addOnId))
+                .notes("Crispy base")
+                .build();
+
+        OfferSelectionInput sel2 = OfferSelectionInput.builder()
+                .slotId(slot2Id)
+                .menuItemId(pestoItem.getId())
+                .quantity(1)
+                .size(ItemSize.REGULAR)
+                .notes("No pine nuts")
+                .build();
+
+        OrderOfferInput offerInput = OrderOfferInput.builder()
+                .offerId(offerId)
+                .quantity(1)
+                .selections(List.of(sel1, sel2))
+                .build();
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setOffers(List.of(offerInput));
+
+        OrderResponse res = orderService.placeOrder(request);
+        assertNotNull(res);
+
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(itemsCaptor.capture());
+        List<OrderItem> savedItems = itemsCaptor.getValue();
+        assertEquals(2, savedItems.size());
+
+        // Both items share the same bundleGroupId
+        assertNotNull(savedItems.get(0).getBundleGroupId());
+        assertEquals(savedItems.get(0).getBundleGroupId(), savedItems.get(1).getBundleGroupId());
+
+        // First item carries fixedPrice (350.00) + addOn (25.00) = 375.00
+        assertEquals(0, BigDecimal.valueOf(375.00).compareTo(savedItems.get(0).getUnitPriceAtPurchase()));
+        assertEquals("Crispy base", savedItems.get(0).getNotes());
+        assertEquals(1, savedItems.get(0).getAddOns().size());
+        assertEquals("Truffle Dip", savedItems.get(0).getAddOns().get(0).getNameEn());
+
+        // Second item carries 0.00 base + 0 addOns = 0.00
+        assertEquals(0, BigDecimal.ZERO.compareTo(savedItems.get(1).getUnitPriceAtPurchase()));
+        assertEquals("No pine nuts", savedItems.get(1).getNotes());
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        assertEquals(0, BigDecimal.valueOf(375.00).compareTo(orderCaptor.getValue().getTotalAmount()));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Resolves miniPrice when size is MINI")
+    void placeOrder_ResolvesMiniPrice() {
+        pizzaItem.setMiniPrice(BigDecimal.valueOf(175.00));
+
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH);
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.MINI);
+        request.setItems(List.of(itemInput));
+
+        orderService.placeOrder(request);
+
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(itemsCaptor.capture());
+        OrderItem savedItem = itemsCaptor.getValue().get(0);
+
+        assertEquals(ItemSize.MINI, savedItem.getSize());
+        assertEquals(0, BigDecimal.valueOf(175.00).compareTo(savedItem.getUnitPriceAtPurchase()));
+    }
+
+    @Test
+    @DisplayName("getAll: Prefetches add-ons in batch for all orders without lazy load issues")
+    void getAll_PrefetchesAddOnsInBatch() {
+        Order order1 = new Order();
+        order1.setId(UUID.randomUUID());
+        order1.setUser(testUser);
+        order1.setBranch(testBranch);
+
+        Order order2 = new Order();
+        order2.setId(UUID.randomUUID());
+        order2.setUser(testUser);
+        order2.setBranch(testBranch);
+
+        when(orderRepository.findAllWithUserAndBranch()).thenReturn(List.of(order1, order2));
+
+        // Security check: ROLE_ADMIN
+        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        doReturn(List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")))
+                .when(auth).getAuthorities();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+        OrderItem item1 = new OrderItem();
+        item1.setId(UUID.randomUUID());
+        item1.setOrder(order1);
+        item1.setMenuItem(pizzaItem);
+        item1.setQuantity(1);
+        item1.setUnitPriceAtPurchase(BigDecimal.valueOf(240.00));
+
+        OrderItem item2 = new OrderItem();
+        item2.setId(UUID.randomUUID());
+        item2.setOrder(order2);
+        item2.setMenuItem(pestoItem);
+        item2.setQuantity(1);
+        item2.setUnitPriceAtPurchase(BigDecimal.valueOf(480.00));
+
+        when(orderItemRepository.findByOrderIdInWithMenuItem(any())).thenReturn(List.of(item1, item2));
+
+        OrderItemAddOn addOn1 = new OrderItemAddOn();
+        addOn1.setId(UUID.randomUUID());
+        addOn1.setOrderItem(item1);
+        addOn1.setNameEn("Extra Dip");
+        addOn1.setPrice(BigDecimal.valueOf(10.00));
+
+        when(orderItemAddOnRepository.findByOrderItemIdIn(any())).thenReturn(List.of(addOn1));
+        when(orderMapper.toResponse(any(Order.class))).thenAnswer(i -> OrderResponse.builder().id(((Order) i.getArgument(0)).getId()).build());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenAnswer(i -> OrderItemResponse.builder()
+                .nameEn(((OrderItem) i.getArgument(0)).getMenuItem().getNameEn())
+                .quantity(1)
+                .build());
+
+        List<OrderResponse> results = orderService.getAll();
+        assertNotNull(results);
+        assertEquals(2, results.size());
+
+        // Verify order 1 has item with addOn1
+        OrderResponse res1 = results.stream().filter(r -> r.getId().equals(order1.getId())).findFirst().orElseThrow();
+        assertEquals(1, res1.getItems().get(0).getAddOns().size());
+        assertEquals("Extra Dip", res1.getItems().get(0).getAddOns().get(0).getNameEn());
+
+        // Verify order 2 item has empty addOns
+        OrderResponse res2 = results.stream().filter(r -> r.getId().equals(order2.getId())).findFirst().orElseThrow();
+        assertTrue(res2.getItems().get(0).getAddOns().isEmpty());
+
+        // Verify batch query called once
+        verify(orderItemAddOnRepository, times(1)).findByOrderItemIdIn(any());
     }
 }

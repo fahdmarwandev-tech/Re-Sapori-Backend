@@ -32,5 +32,7 @@ public class OrderResponse {
     private String customerName;
     private String customerEmail;
     private String customerPhone;
+    private String orderNotes;
+    private String notes;
     private LocalDateTime createdAt;
 }

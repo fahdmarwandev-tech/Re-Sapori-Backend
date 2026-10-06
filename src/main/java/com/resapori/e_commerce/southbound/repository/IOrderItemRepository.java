@@ -13,9 +13,9 @@ import java.util.UUID;
 public interface IOrderItemRepository extends JpaRepository<OrderItem, UUID> {
     List<OrderItem> findByOrderId(UUID orderId);
 
-    @Query("SELECT oi FROM OrderItem oi LEFT JOIN FETCH oi.menuItem WHERE oi.order.id = :orderId")
+    @Query("SELECT DISTINCT oi FROM OrderItem oi LEFT JOIN FETCH oi.menuItem LEFT JOIN FETCH oi.offer WHERE oi.order.id = :orderId")
     List<OrderItem> findByOrderIdWithMenuItem(@Param("orderId") UUID orderId);
 
-    @Query("SELECT oi FROM OrderItem oi LEFT JOIN FETCH oi.menuItem WHERE oi.order.id IN :orderIds")
+    @Query("SELECT DISTINCT oi FROM OrderItem oi LEFT JOIN FETCH oi.menuItem LEFT JOIN FETCH oi.offer WHERE oi.order.id IN :orderIds")
     List<OrderItem> findByOrderIdInWithMenuItem(@Param("orderIds") List<UUID> orderIds);
 }
