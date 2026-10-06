@@ -470,6 +470,14 @@ public class OrderServiceImpl implements IOrderService {
         }
         if (slot.getEligibleItems() != null && !slot.getEligibleItems().isEmpty()) {
             boolean allowed = slot.getEligibleItems().stream().anyMatch(e -> e.getId().equals(item.getId()));
+            if (!allowed) {
+                boolean isDrinkSlot = (slot.getSlotNameEn() != null && slot.getSlotNameEn().toLowerCase().contains("drink"))
+                        || (slot.getCategory() != null && slot.getCategory().getNameEn() != null && slot.getCategory().getNameEn().equalsIgnoreCase("Drinks"));
+                boolean isItemDrink = item.getCategory() != null && item.getCategory().getNameEn() != null && item.getCategory().getNameEn().equalsIgnoreCase("Drinks");
+                if (isDrinkSlot && isItemDrink) {
+                    allowed = true;
+                }
+            }
             if (!allowed) throw new IllegalArgumentException("Item is not eligible for this slot: " + item.getNameEn());
         }
     }
