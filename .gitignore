@@ -34,3 +34,7 @@ build/
 
 ### Environment ###
 .env
+env
+
+### Local duplicate clone ###
+Re-Sapori-Backend/
