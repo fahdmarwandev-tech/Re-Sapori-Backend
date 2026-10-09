@@ -1,5 +1,7 @@
 package com.resapori.e_commerce.northbound.dto.promo;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.resapori.e_commerce.common.serializer.FlexibleLocalDateTimeDeserializer;
 import com.resapori.e_commerce.southbound.enums.DiscountType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,6 +23,7 @@ public class PromoCodeRequest {
     private BigDecimal discountValue;
     private UUID freeItemId;
     private UUID userId;
+    @JsonDeserialize(using = FlexibleLocalDateTimeDeserializer.class)
     private LocalDateTime expiryDate;
     private Integer maxUses;
     @Builder.Default
