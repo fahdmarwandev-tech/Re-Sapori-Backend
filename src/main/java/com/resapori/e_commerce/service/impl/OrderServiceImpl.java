@@ -460,6 +460,9 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private boolean isCarDeliveryOrder(PlaceOrderRequest request, UserAddress address) {
+        if (request != null && request.getOrderType() == OrderType.DELIVERY) {
+            return false;
+        }
         if (request != null && request.getCarPlate() != null && !request.getCarPlate().isBlank()) {
             return true;
         }

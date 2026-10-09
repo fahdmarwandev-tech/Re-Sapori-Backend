@@ -31,4 +31,7 @@ public class MenuCategory extends BaseEntity {
 
     @Column(name = "subtitle_ar")
     private String subtitleAr;
+
+    @Column(name = "is_visible", nullable = false)
+    private boolean isVisible = true;
 }

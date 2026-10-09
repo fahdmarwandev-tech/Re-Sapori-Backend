@@ -18,4 +18,5 @@ public class MenuCategoryResponse {
     private String subtitleEn;
     private String subtitleAr;
     private boolean isActive;
+    private boolean isVisible;
 }

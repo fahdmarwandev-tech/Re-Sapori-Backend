@@ -43,6 +43,14 @@ public class MenuCategoryController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/visibility")
+    public ResponseEntity<MenuCategoryResponse> toggleVisibility(
+            @PathVariable UUID id,
+            @RequestParam boolean visible) {
+        return ResponseEntity.ok(service.toggleVisibility(id, visible));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

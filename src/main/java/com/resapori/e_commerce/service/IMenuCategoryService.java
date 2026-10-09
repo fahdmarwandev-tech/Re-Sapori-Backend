@@ -11,5 +11,6 @@ public interface IMenuCategoryService {
     MenuCategoryResponse getById(UUID id);
     List<MenuCategoryResponse> getAll();
     MenuCategoryResponse update(UUID id, MenuCategoryRequest request);
+    MenuCategoryResponse toggleVisibility(UUID id, boolean visible);
     void delete(UUID id);
 }

@@ -17,4 +17,5 @@ public class MenuCategoryRequest {
     private Integer displayOrder;
     private String subtitleEn;
     private String subtitleAr;
+    private Boolean isVisible;
 }
