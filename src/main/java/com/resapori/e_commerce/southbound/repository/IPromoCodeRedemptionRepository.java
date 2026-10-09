@@ -58,4 +58,22 @@ public interface IPromoCodeRedemptionRepository extends JpaRepository<PromoCodeR
      * @return the existing redemption, or empty if none exists
      */
     Optional<PromoCodeRedemption> findByOrderId(UUID orderId);
+
+    /**
+     * Fetches redemption record for a specific order eagerly loading the PromoCode entity.
+     *
+     * @param orderId the order UUID
+     * @return the existing redemption with promo code loaded
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM PromoCodeRedemption r LEFT JOIN FETCH r.promoCode WHERE r.order.id = :orderId")
+    Optional<PromoCodeRedemption> findByOrderIdWithPromoCode(@org.springframework.data.repository.query.Param("orderId") UUID orderId);
+
+    /**
+     * Fetches all redemptions for a list of orders in a single query eagerly loading PromoCode.
+     *
+     * @param orderIds list of order UUIDs
+     * @return list of redemptions with promo codes loaded
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM PromoCodeRedemption r LEFT JOIN FETCH r.promoCode WHERE r.order.id IN :orderIds")
+    List<PromoCodeRedemption> findByOrderIdInWithPromoCode(@org.springframework.data.repository.query.Param("orderIds") List<UUID> orderIds);
 }

@@ -94,6 +94,14 @@ public class OrderServiceImpl implements IOrderService {
         finalizePromoRedemption(promoCtx, user, savedOrder);
 
         OrderResponse response = mapToResponse(savedOrder, orderItems);
+        if (promoCtx != null) {
+            response.setPromoCode(promoCtx.promoCode().getCode());
+            response.setPromoDiscountAmount(promoCtx.discountApplied());
+            response.setDiscountAmount(promoCtx.discountApplied());
+            if (promoCtx.promoCode().getDiscountType() == DiscountType.PERCENTAGE) {
+                response.setPromoDiscountPercentage(promoCtx.promoCode().getDiscountValue());
+            }
+        }
         eventPublisher.publishEvent(new OrderEvent(response, EventType.NEW_ORDER));
         return response;
     }
@@ -142,8 +150,9 @@ public class OrderServiceImpl implements IOrderService {
         if (orders.isEmpty()) return Collections.emptyList();
         Map<UUID, List<OrderItem>> itemsByOrderId = fetchItemsGroupedByOrderId(orders);
         Map<UUID, List<OrderItemAddOn>> addOnsByItemId = fetchAddOnsGroupedByOrderItemId(itemsByOrderId);
+        Map<UUID, PromoCodeRedemption> redemptionsByOrderId = fetchRedemptionsGroupedByOrderId(orders);
         return orders.stream()
-                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId))
+                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId, redemptionsByOrderId))
                 .toList();
     }
 
@@ -155,8 +164,9 @@ public class OrderServiceImpl implements IOrderService {
         if (orders.isEmpty()) return Collections.emptyList();
         Map<UUID, List<OrderItem>> itemsByOrderId = fetchItemsGroupedByOrderId(orders);
         Map<UUID, List<OrderItemAddOn>> addOnsByItemId = fetchAddOnsGroupedByOrderItemId(itemsByOrderId);
+        Map<UUID, PromoCodeRedemption> redemptionsByOrderId = fetchRedemptionsGroupedByOrderId(orders);
         return orders.stream()
-                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId))
+                .map(order -> mapToResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()), addOnsByItemId, redemptionsByOrderId))
                 .toList();
     }
 
@@ -460,9 +470,6 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private boolean isCarDeliveryOrder(PlaceOrderRequest request, UserAddress address) {
-        if (request != null && request.getOrderType() == OrderType.DELIVERY) {
-            return false;
-        }
         if (request != null && request.getCarPlate() != null && !request.getCarPlate().isBlank()) {
             return true;
         }
@@ -583,9 +590,11 @@ public class OrderServiceImpl implements IOrderService {
 
     private BigDecimal resolveItemPrice(MenuItem menuItem, ItemSize size) {
         if (size == ItemSize.MINI) {
-            return menuItem.getMiniPrice();
+            return menuItem.getMiniPrice() != null ? menuItem.getMiniPrice() : menuItem.getCurrentPrice();
         }
-        if (menuItem.getDiscountPrice() != null && menuItem.getDiscountPrice().compareTo(BigDecimal.ZERO) > 0) {
+        if (menuItem.getDiscountPrice() != null
+                && menuItem.getDiscountPrice().compareTo(BigDecimal.ZERO) > 0
+                && (menuItem.getCurrentPrice() == null || menuItem.getDiscountPrice().compareTo(menuItem.getCurrentPrice()) < 0)) {
             return menuItem.getDiscountPrice();
         }
         return menuItem.getCurrentPrice();
@@ -652,7 +661,7 @@ public class OrderServiceImpl implements IOrderService {
             validateSlotSelection(slot, item);
             BigDecimal addOns = computeAddOnsTotal(sel.getAddOnIds(), addOnMap);
             ItemSize size = sel.getSize() != null ? sel.getSize() : ItemSize.REGULAR;
-            BigDecimal base = (size == ItemSize.MINI && item.getMiniPrice() != null) ? item.getMiniPrice() : item.getCurrentPrice();
+            BigDecimal base = resolveItemPrice(item, size);
             int qty = sel.getQuantity() != null && sel.getQuantity() > 0 ? sel.getQuantity() : 1;
             for (int i = 0; i < qty; i++) {
                 contexts.add(new PriceContext(slot, item, size, base, addOns, BigDecimal.ZERO, sel.getAddOnIds(), sel.getNotes(), slot.isFree()));
@@ -841,6 +850,15 @@ public class OrderServiceImpl implements IOrderService {
                 .collect(Collectors.groupingBy(a -> a.getOrderItem().getId()));
     }
 
+    private Map<UUID, PromoCodeRedemption> fetchRedemptionsGroupedByOrderId(List<Order> orders) {
+        List<UUID> orderIds = orders.stream().map(Order::getId).filter(Objects::nonNull).toList();
+        if (orderIds.isEmpty()) return Collections.emptyMap();
+        List<PromoCodeRedemption> redemptions = promoCodeRedemptionRepository.findByOrderIdInWithPromoCode(orderIds);
+        return redemptions.stream()
+                .filter(r -> r.getOrder() != null && r.getOrder().getId() != null)
+                .collect(Collectors.toMap(r -> r.getOrder().getId(), r -> r, (existing, replacement) -> existing));
+    }
+
     private void validateOrderAccess(Order order) {
         if (isAdmin()) return;
         User user = authUtil.getAuthenticatedUser();
@@ -912,14 +930,41 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private OrderResponse mapToResponse(Order order, List<OrderItem> items) {
-        return mapToResponse(order, items, null);
+        return mapToResponse(order, items, null, null);
     }
 
     private OrderResponse mapToResponse(Order order, List<OrderItem> items, Map<UUID, List<OrderItemAddOn>> preloadedAddOns) {
+        return mapToResponse(order, items, preloadedAddOns, null);
+    }
+
+    private OrderResponse mapToResponse(
+            Order order,
+            List<OrderItem> items,
+            Map<UUID, List<OrderItemAddOn>> preloadedAddOns,
+            Map<UUID, PromoCodeRedemption> preloadedRedemptions) {
         OrderResponse response = orderMapper.toResponse(order);
         if (order.getOrderNotes() != null) {
             response.setOrderNotes(order.getOrderNotes());
             response.setNotes(order.getOrderNotes());
+        }
+
+        // Single source of truth: populate promo code and discount deduction
+        PromoCodeRedemption redemption = null;
+        if (preloadedRedemptions != null && order.getId() != null) {
+            redemption = preloadedRedemptions.get(order.getId());
+        } else if (order.getId() != null) {
+            redemption = promoCodeRedemptionRepository.findByOrderIdWithPromoCode(order.getId()).orElse(null);
+        }
+
+        if (redemption != null) {
+            if (redemption.getPromoCode() != null) {
+                response.setPromoCode(redemption.getPromoCode().getCode());
+                if (redemption.getPromoCode().getDiscountType() == DiscountType.PERCENTAGE) {
+                    response.setPromoDiscountPercentage(redemption.getPromoCode().getDiscountValue());
+                }
+            }
+            response.setPromoDiscountAmount(redemption.getDiscountApplied());
+            response.setDiscountAmount(redemption.getDiscountApplied());
         }
 
         List<UUID> itemIds = items.stream().map(OrderItem::getId).filter(Objects::nonNull).toList();
@@ -1017,7 +1062,9 @@ public class OrderServiceImpl implements IOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Invalid or inactive promo code: " + code));
         validatePromoEligibility(promoCode, user);
         BigDecimal discount = calculateDiscount(promoCode, items, order);
-        order.setTotalAmount(order.getTotalAmount().subtract(discount).max(BigDecimal.ZERO));
+        if (promoCode.getDiscountType() == DiscountType.PERCENTAGE) {
+            order.setTotalAmount(order.getTotalAmount().subtract(discount).max(BigDecimal.ZERO));
+        }
         return new PromoContext(promoCode, discount);
     }
 

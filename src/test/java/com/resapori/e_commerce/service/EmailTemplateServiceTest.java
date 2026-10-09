@@ -154,4 +154,88 @@ class EmailTemplateServiceTest {
         assertFalse(html.contains("Zamalek"), "OTP email should not contain hardcoded Zamalek");
         assertTrue(html.contains("6th of October City"));
     }
+
+    @Test
+    @DisplayName("buildOrderConfirmedEmail: Displays promo discount, subtotal, and delivery fee reconciling with total")
+    void buildOrderConfirmedEmail_showsPromoDiscountAndSubtotal() {
+        // Reproduce exact photo scenario: Margherita (240) - Promo 10% (24) + Delivery (35) = 251 Total
+        UUID orderId = UUID.fromString("1aaff200-0000-0000-0000-000000000000");
+        OrderResponse order = OrderResponse.builder()
+                .id(orderId)
+                .status(OrderStatus.PREPARING)
+                .orderType(OrderType.DELIVERY)
+                .deliveryAddress("Petromin Gas station, October")
+                .paymentMethod(PaymentMethod.CASH_ON_DELIVERY)
+                .customerName("Abdelrahman Abohashish")
+                .customerEmail("abdo@example.com")
+                .currency("EGP")
+                .promoCode("WELCOME10")
+                .promoDiscountPercentage(new BigDecimal("10.00"))
+                .discountAmount(new BigDecimal("24.00"))
+                .deliveryFee(new BigDecimal("35.00"))
+                .totalAmount(new BigDecimal("251.00"))
+                .createdAt(LocalDateTime.of(2026, 10, 9, 12, 33))
+                .items(List.of(
+                        OrderItemResponse.builder()
+                                .nameEn("Margherita")
+                                .quantity(1)
+                                .size(ItemSize.REGULAR)
+                                .unitPriceAtPurchase(new BigDecimal("240.00"))
+                                .lineTotal(new BigDecimal("240.00"))
+                                .isFree(false)
+                                .build()
+                ))
+                .build();
+
+        String html = templateService.buildOrderConfirmedEmail(order);
+
+        assertNotNull(html);
+        assertTrue(html.contains("#RS-1AAFF2"), "Should format order reference correctly");
+        assertTrue(html.contains("Margherita"), "Should show Margherita");
+        assertTrue(html.contains("Items Subtotal"), "Should show Items Subtotal row");
+        assertTrue(html.contains("240.00 EGP"), "Should show subtotal amount");
+        assertTrue(html.contains("WELCOME10"), "Should display promo code name");
+        assertTrue(html.contains("10%"), "Should display promo discount percentage");
+        assertTrue(html.contains("-24.00 EGP"), "Should display promo discount deduction");
+        assertTrue(html.contains("+35.00 EGP"), "Should display delivery fee");
+        assertTrue(html.contains("251.00"), "Should display reconciled total amount due");
+    }
+
+    @Test
+    @DisplayName("buildOrderConfirmedEmail: Formats bundle offer items with badge and Included in Offer")
+    void buildOrderConfirmedEmail_showsBundleOfferDetails() {
+        OrderResponse order = OrderResponse.builder()
+                .id(UUID.randomUUID())
+                .status(OrderStatus.PREPARING)
+                .orderType(OrderType.DELIVERY)
+                .currency("EGP")
+                .totalAmount(new BigDecimal("350.00"))
+                .items(List.of(
+                        OrderItemResponse.builder()
+                                .nameEn("Margherita Pizza")
+                                .quantity(1)
+                                .size(ItemSize.REGULAR)
+                                .unitPriceAtPurchase(new BigDecimal("350.00"))
+                                .lineTotal(new BigDecimal("350.00"))
+                                .offerName("Double Deal")
+                                .build(),
+                        OrderItemResponse.builder()
+                                .nameEn("Pepperoni Pizza")
+                                .quantity(1)
+                                .size(ItemSize.REGULAR)
+                                .unitPriceAtPurchase(BigDecimal.ZERO)
+                                .lineTotal(BigDecimal.ZERO)
+                                .offerName("Double Deal")
+                                .notes("Extra crispy")
+                                .build()
+                ))
+                .build();
+
+        String html = templateService.buildOrderConfirmedEmail(order);
+
+        assertNotNull(html);
+        assertTrue(html.contains("Offer: Double Deal"), "Should show Offer badge");
+        assertTrue(html.contains("Included in Offer"), "Should display Included in Offer for zero-cost bundle item");
+        assertTrue(html.contains("Note: Extra crispy"), "Should display item note");
+    }
 }

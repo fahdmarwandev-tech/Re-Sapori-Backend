@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class EmailTemplateServiceImpl implements IEmailTemplateService {
@@ -139,32 +140,72 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
 
         StringBuilder itemsRows = new StringBuilder();
         List<OrderItemResponse> items = order != null ? order.getItems() : null;
+        BigDecimal subtotal = BigDecimal.ZERO;
+
         if (items != null && !items.isEmpty()) {
             for (OrderItemResponse item : items) {
                 String itemName = escapeHtml(item.getNameEn() != null ? item.getNameEn() : "Dish");
                 String itemSize = (item.getSize() != null && !item.getSize().name().equalsIgnoreCase("REGULAR"))
                         ? " (" + escapeHtml(item.getSize().name()) + ")" : "";
-                String lineTotal = item.isFree() ? "FREE" : formatCurrency(item.getLineTotal()) + " " + currency;
+
+                BigDecimal lineTotalVal = item.getLineTotal();
+                if (lineTotalVal == null) {
+                    BigDecimal unitPrice = item.getUnitPriceAtPurchase() != null ? item.getUnitPriceAtPurchase() : BigDecimal.ZERO;
+                    lineTotalVal = unitPrice.multiply(BigDecimal.valueOf(Math.max(1, item.getQuantity())));
+                }
+                subtotal = subtotal.add(lineTotalVal);
+
+                String priceDisplay;
+                if (item.isFree()) {
+                    priceDisplay = "<span style=\"color: #81c784;\">FREE</span>";
+                } else if (lineTotalVal.compareTo(BigDecimal.ZERO) == 0 && item.getOfferName() != null && !item.getOfferName().isBlank()) {
+                    priceDisplay = "<span style=\"color: #df9926; font-size: 11px;\">Included in Offer</span>";
+                } else {
+                    priceDisplay = formatCurrency(lineTotalVal) + " " + currency;
+                }
+
+                StringBuilder itemDetails = new StringBuilder();
+                if (item.isFree()) {
+                    itemDetails.append("<br><span style=\"display: inline-block; margin-top: 3px; font-size: 11px; color: #81c784; font-weight: 600;\">&#10004; Promo Gift</span>");
+                } else if (item.getOfferName() != null && !item.getOfferName().isBlank()) {
+                    itemDetails.append("<br><span style=\"display: inline-block; margin-top: 3px; font-size: 11px; color: #df9926; font-weight: 600;\">&#127991; Offer: ").append(escapeHtml(item.getOfferName())).append("</span>");
+                }
+                if (item.getAddOns() != null && !item.getAddOns().isEmpty()) {
+                    String addOnsStr = item.getAddOns().stream()
+                            .map(a -> escapeHtml(a.getNameEn()) + (a.getPrice() != null && a.getPrice().compareTo(BigDecimal.ZERO) > 0 ? " (+" + formatCurrency(a.getPrice()) + ")" : ""))
+                            .collect(Collectors.joining(", "));
+                    itemDetails.append("<br><span style=\"display: inline-block; margin-top: 2px; font-size: 11px; color: #9e9382;\">+ ").append(addOnsStr).append("</span>");
+                }
+                if (item.getNotes() != null && !item.getNotes().isBlank()) {
+                    itemDetails.append("<br><span style=\"display: inline-block; margin-top: 2px; font-size: 11px; color: #9e9382; font-style: italic;\">Note: ").append(escapeHtml(item.getNotes().trim())).append("</span>");
+                }
 
                 itemsRows.append("""
                     <tr>
                       <td style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #ffffff; font-size: 13px;">
-                        <strong>""").append(itemName).append("</strong>").append(itemSize);
-                if (item.isFree()) {
-                    itemsRows.append("""
-                        <br><span style="font-size: 11px; color: #ffb952; font-weight: 600;">Promo Gift</span>""");
-                }
-                itemsRows.append("""
+                        <strong>""").append(itemName).append("</strong>").append(itemSize).append(itemDetails).append("""
                       </td>
                       <td align="center" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #d4cdc5; font-size: 13px;">
                         x""").append(item.getQuantity()).append("""
                       </td>
                       <td align="right" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #ffb952; font-size: 13px; font-weight: 600; white-space: nowrap;">
-                        """).append(lineTotal).append("""
+                        """).append(priceDisplay).append("""
                       </td>
                     </tr>
                     """);
             }
+
+            // Items Subtotal row
+            itemsRows.append("""
+                <tr>
+                  <td colspan="2" align="left" style="padding: 12px 10px; border-top: 1px solid #383025; border-bottom: 1px solid #28241d; color: #b5ac9f; font-size: 13px;">
+                    Items Subtotal
+                  </td>
+                  <td align="right" style="padding: 12px 10px; border-top: 1px solid #383025; border-bottom: 1px solid #28241d; color: #d4cdc5; font-size: 13px; font-weight: 600; white-space: nowrap;">
+                    """).append(formatCurrency(subtotal)).append(" ").append(currency).append("""
+                  </td>
+                </tr>
+                """);
         } else {
             itemsRows.append("""
                 <tr>
@@ -175,9 +216,40 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                 """);
         }
 
+        // Promo Code Discount row (Single Source of Truth)
+        BigDecimal discount = null;
+        if (order != null) {
+            if (order.getDiscountAmount() != null && order.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+                discount = order.getDiscountAmount();
+            } else if (order.getPromoDiscountAmount() != null && order.getPromoDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+                discount = order.getPromoDiscountAmount();
+            }
+        }
+        if (discount != null) {
+            StringBuilder promoLabel = new StringBuilder("&#127991; Promo Code Discount");
+            if (order.getPromoCode() != null && !order.getPromoCode().isBlank()) {
+                promoLabel = new StringBuilder("&#127991; Promo (").append(escapeHtml(order.getPromoCode().trim()));
+                if (order.getPromoDiscountPercentage() != null && order.getPromoDiscountPercentage().compareTo(BigDecimal.ZERO) > 0) {
+                    promoLabel.append(" - ").append(order.getPromoDiscountPercentage().stripTrailingZeros().toPlainString()).append("%");
+                }
+                promoLabel.append(")");
+            }
+            itemsRows.append("""
+                <tr>
+                  <td colspan="2" align="left" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #81c784; font-size: 13px;">
+                    """).append(promoLabel).append("""
+                  </td>
+                  <td align="right" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #81c784; font-size: 13px; font-weight: 600; white-space: nowrap;">
+                    -""").append(formatCurrency(discount)).append(" ").append(currency).append("""
+                  </td>
+                </tr>
+                """);
+        }
+
+        // Delivery Fee row
         if (order != null && order.getOrderType() == OrderType.DELIVERY) {
             String feeFormatted = (order.getDeliveryFee() != null && order.getDeliveryFee().compareTo(BigDecimal.ZERO) > 0)
-                    ? "+" + formatCurrency(order.getDeliveryFee()) + " " + (order.getCurrency() != null ? escapeHtml(order.getCurrency()) : "EGP")
+                    ? "+" + formatCurrency(order.getDeliveryFee()) + " " + currency
                     : "FREE";
             itemsRows.append("""
                 <tr>
@@ -196,7 +268,7 @@ public class EmailTemplateServiceImpl implements IEmailTemplateService {
                     &#128757; <em>Delivery &amp; Service Fee</em>
                   </td>
                   <td align="right" style="padding: 12px 10px; border-bottom: 1px solid #28241d; color: #ffb952; font-size: 13px; font-weight: 600; white-space: nowrap;">
-                    +""").append(formatCurrency(order.getDeliveryFee())).append(" ").append(order.getCurrency() != null ? escapeHtml(order.getCurrency()) : "EGP").append("""
+                    +""").append(formatCurrency(order.getDeliveryFee())).append(" ").append(currency).append("""
                   </td>
                 </tr>
                 """);
