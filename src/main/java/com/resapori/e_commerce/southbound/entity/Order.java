@@ -34,6 +34,10 @@ public class Order extends BaseEntity {
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "address_id")
+    private UserAddress address;
+
     @Enumerated(EnumType.STRING)
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false)
@@ -57,6 +61,45 @@ public class Order extends BaseEntity {
 
     @Column(name = "currency", length = 3, nullable = false)
     private String currency = "EGP";
+
+    @Column(name = "customer_phone")
+    private String customerPhone;
+
+    @Column(name = "street")
+    private String street;
+
+    @Column(name = "building")
+    private String building;
+
+    @Column(name = "floor")
+    private String floor;
+
+    @Column(name = "apartment")
+    private String apartment;
+
+    @Column(name = "district")
+    private String district;
+
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "landmark")
+    private String landmark;
+
+    @Column(name = "car_plate")
+    private String carPlate;
+
+    @Column(name = "car_details")
+    private String carDetails;
+
+    @Column(name = "lat", precision = 10, scale = 7)
+    private BigDecimal lat;
+
+    @Column(name = "lng", precision = 10, scale = 7)
+    private BigDecimal lng;
+
+    @Column(name = "google_maps_url", length = 500)
+    private String googleMapsUrl;
 
     @Column(name = "delivery_address")
     private String deliveryAddress;

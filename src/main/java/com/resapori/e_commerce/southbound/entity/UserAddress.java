@@ -25,14 +25,21 @@ public class UserAddress extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** Human-readable label, e.g. "Home" or "Work". */
+    /** "DELIVERY" (house/work) or "CAR_PICKUP" */
+    @Column(name = "address_type")
+    private String addressType = "DELIVERY";
+
+    /** Human-readable label, e.g. "Home", "Work", or "My Car". */
     @Column(name = "label")
     private String label;
 
-    @Column(name = "street", nullable = false)
+    @Column(name = "street")
     private String street;
 
-    @Column(name = "city", nullable = false)
+    @Column(name = "building")
+    private String building;
+
+    @Column(name = "city")
     private String city;
 
     @Column(name = "district")
@@ -43,6 +50,18 @@ public class UserAddress extends BaseEntity {
 
     @Column(name = "apartment")
     private String apartment;
+
+    @Column(name = "landmark")
+    private String landmark;
+
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
+    @Column(name = "car_plate")
+    private String carPlate;
+
+    @Column(name = "car_details")
+    private String carDetails;
 
     /** Latitude — nullable, reserved for future geo-features. */
     @Column(name = "lat", precision = 10, scale = 7)

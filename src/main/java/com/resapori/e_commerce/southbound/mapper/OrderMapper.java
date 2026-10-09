@@ -14,7 +14,8 @@ public interface OrderMapper {
     @Mapping(source = "user.id", target = "userId")
     @Mapping(target = "customerName", expression = "java(formatCustomerName(entity))")
     @Mapping(source = "user.email", target = "customerEmail")
-    @Mapping(source = "user.phoneNumber", target = "customerPhone")
+    @Mapping(target = "customerPhone", expression = "java(resolveCustomerPhone(entity))")
+    @Mapping(source = "address.id", target = "addressId")
     @Mapping(source = "orderNotes", target = "orderNotes")
     @Mapping(source = "orderNotes", target = "notes")
     @Mapping(target = "items", ignore = true)
@@ -26,6 +27,16 @@ public interface OrderMapper {
         String last = entity.getUser().getLastName() != null ? entity.getUser().getLastName() : "";
         String fullName = (first + " " + last).trim();
         return fullName.isEmpty() ? null : fullName;
+    }
+
+    default String resolveCustomerPhone(Order entity) {
+        if (entity.getCustomerPhone() != null && !entity.getCustomerPhone().isBlank()) {
+            return entity.getCustomerPhone();
+        }
+        if (entity.getUser() != null) {
+            return entity.getUser().getPhoneNumber();
+        }
+        return null;
     }
 
     List<OrderResponse> toResponseList(List<Order> entities);

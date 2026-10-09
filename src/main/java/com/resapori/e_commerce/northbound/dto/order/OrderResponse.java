@@ -24,7 +24,20 @@ public class OrderResponse {
     private BigDecimal totalAmount;
     private BigDecimal deliveryFee;
     private String currency;
+    private UUID addressId;
     private String deliveryAddress;
+    private String street;
+    private String building;
+    private String floor;
+    private String apartment;
+    private String district;
+    private String city;
+    private String landmark;
+    private String carPlate;
+    private String carDetails;
+    private BigDecimal lat;
+    private BigDecimal lng;
+    private String googleMapsUrl;
     private UUID branchId;
     private String branchName;
     private List<OrderItemResponse> items;
@@ -35,4 +48,8 @@ public class OrderResponse {
     private String orderNotes;
     private String notes;
     private LocalDateTime createdAt;
+    private String promoCode;
+    private BigDecimal promoDiscountPercentage;
+    private BigDecimal promoDiscountAmount;
+    private BigDecimal discountAmount;
 }

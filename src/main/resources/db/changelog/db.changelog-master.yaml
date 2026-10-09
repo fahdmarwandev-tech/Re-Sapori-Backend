@@ -83,3 +83,5 @@ databaseChangeLog:
       file: db/changelog/changes/41-alter-orders-add-notes-and-addons.sql
   - include:
       file: db/changelog/changes/42-add-1l-drinks-to-offer-slots.sql
+  - include:
+      file: db/changelog/changes/43-expand-address-and-order-columns.sql

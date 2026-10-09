@@ -212,20 +212,86 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(OrderStatus.PENDING);
         order.setCurrency("EGP");
 
-        if (request.getOrderType() == OrderType.DELIVERY) {
-            UserAddress address = resolveDeliveryAddress(request.getAddressId(), user.getId());
-            order.setDeliveryAddress(formatAddress(address));
+        // Customer contact phone snapshot
+        String effectivePhone = request.getEffectivePhoneNumber();
+        if ((effectivePhone == null || effectivePhone.isBlank()) && user != null) {
+            effectivePhone = user.getPhoneNumber();
+        }
+        order.setCustomerPhone(effectivePhone);
 
-            boolean isCarDelivery = isCarDeliveryOrder(request, address);
+        // Resolve saved address if provided
+        UserAddress address = null;
+        if (request.getAddressId() != null) {
+            address = resolveDeliveryAddress(request.getAddressId(), user != null ? user.getId() : null);
+            order.setAddress(address);
+        }
 
-            if (isCarDelivery) {
-                order.setDeliveryFee(BigDecimal.ZERO);
-                if (request.getBranchId() != null) {
-                    branchRepository.findById(request.getBranchId())
-                            .filter(Branch::isActive)
-                            .ifPresent(order::setBranch);
-                }
+        boolean isCarDelivery = isCarDeliveryOrder(request, address);
+
+        if (isCarDelivery) {
+            order.setDeliveryFee(BigDecimal.ZERO);
+
+            // Car plate resolution
+            String plate = (request.getCarPlate() != null && !request.getCarPlate().isBlank())
+                    ? request.getCarPlate().trim()
+                    : (address != null && address.getCarPlate() != null ? address.getCarPlate().trim() : null);
+            if ((plate == null || plate.isBlank()) && request.getOrderNotes() != null) {
+                plate = extractPlateFromNotes(request.getOrderNotes());
+            }
+            order.setCarPlate(plate);
+
+            // Car details resolution
+            String carDetails = (request.getCarDetails() != null && !request.getCarDetails().isBlank())
+                    ? request.getCarDetails().trim()
+                    : (address != null && address.getCarDetails() != null ? address.getCarDetails().trim() : null);
+            if ((carDetails == null || carDetails.isBlank()) && request.getOrderNotes() != null) {
+                carDetails = extractCarDetailsFromNotes(request.getOrderNotes());
+            }
+            order.setCarDetails(carDetails);
+
+            // Set clean formatted delivery address
+            String cleanCarAddr = formatCarAddress(plate, carDetails);
+            if (request.getDeliveryAddress() != null && !request.getDeliveryAddress().isBlank()) {
+                String sanitized = cleanDeliveryAddressString(request.getDeliveryAddress());
+                order.setDeliveryAddress(sanitized.isEmpty() ? cleanCarAddr : sanitized);
             } else {
+                order.setDeliveryAddress(cleanCarAddr);
+            }
+
+            if ((order.getCustomerPhone() == null || order.getCustomerPhone().isBlank()) && address != null && address.getPhoneNumber() != null) {
+                order.setCustomerPhone(address.getPhoneNumber());
+            }
+
+            // Assign branch
+            if (request.getBranchId() != null) {
+                branchRepository.findById(request.getBranchId())
+                        .filter(Branch::isActive)
+                        .ifPresent(order::setBranch);
+            }
+            if (order.getBranch() == null) {
+                branchRepository.findByIsActiveTrue().stream().findFirst().ifPresent(order::setBranch);
+            }
+            if (order.getBranch() == null || !order.getBranch().isActive()) {
+                throw new IllegalStateException("عذراً، لا يوجد أي فرع متاح حالياً لاستلام وتوصيل الطلبات (No active branch is currently available to fulfill orders)");
+            }
+        } else if (request.getOrderType() == OrderType.DELIVERY) {
+            if (address != null) {
+                // Populate structured fields from saved address
+                order.setStreet(cleanStreetOnly(address.getStreet()));
+                order.setBuilding(address.getBuilding());
+                order.setFloor(address.getFloor());
+                order.setApartment(address.getApartment());
+                order.setDistrict(address.getDistrict());
+                order.setCity(address.getCity());
+                order.setLandmark(address.getLandmark());
+                order.setLat(address.getLat() != null ? address.getLat() : request.getLat());
+                order.setLng(address.getLng() != null ? address.getLng() : request.getLng());
+                order.setGoogleMapsUrl(request.getGoogleMapsUrl());
+                if ((order.getCustomerPhone() == null || order.getCustomerPhone().isBlank()) && address.getPhoneNumber() != null) {
+                    order.setCustomerPhone(address.getPhoneNumber());
+                }
+                order.setDeliveryAddress(formatStructuredAddress(order));
+
                 DeliveryFeeResponse feeRes = deliveryService.calculateForAddress(address.getId(), request.getBranchId());
                 if (feeRes != null && !feeRes.isCovered()) {
                     throw new IllegalArgumentException("عذراً، العنوان المحدد يقع خارج نطاق التوصيل لجميع فروعنا (Selected address is outside our delivery zones)");
@@ -236,6 +302,52 @@ public class OrderServiceImpl implements IOrderService {
                             .filter(Branch::isActive)
                             .ifPresent(order::setBranch);
                 }
+            } else {
+                // Direct delivery input
+                order.setStreet(cleanStreetOnly(request.getStreet()));
+                order.setBuilding(request.getBuilding());
+                order.setFloor(request.getFloor());
+                order.setApartment(request.getApartment());
+                order.setDistrict(request.getDistrict());
+                order.setCity(request.getCity());
+                order.setLandmark(request.getLandmark());
+                order.setLat(request.getLat());
+                order.setLng(request.getLng());
+                order.setGoogleMapsUrl(request.getGoogleMapsUrl());
+
+                String formatted = formatStructuredAddress(order);
+                if (formatted != null && !formatted.isBlank()) {
+                    order.setDeliveryAddress(formatted);
+                } else if (request.getDeliveryAddress() != null && !request.getDeliveryAddress().isBlank()) {
+                    order.setDeliveryAddress(cleanDeliveryAddressString(request.getDeliveryAddress()));
+                } else {
+                    throw new IllegalArgumentException("Address is required for delivery orders");
+                }
+
+                BigDecimal fee = BigDecimal.valueOf(35.00);
+                if (request.getLat() != null && request.getLng() != null) {
+                    DeliveryFeeResponse feeRes = deliveryService.calculateDeliveryFee(
+                            com.resapori.e_commerce.northbound.dto.delivery.CalculateDeliveryFeeRequest.builder()
+                                    .lat(request.getLat())
+                                    .lng(request.getLng())
+                                    .branchId(request.getBranchId())
+                                    .build());
+                    if (feeRes != null && feeRes.getDeliveryFee() != null) {
+                        fee = feeRes.getDeliveryFee();
+                    }
+                    if (feeRes != null && feeRes.getBranchId() != null) {
+                        branchRepository.findById(feeRes.getBranchId())
+                                .filter(Branch::isActive)
+                                .ifPresent(order::setBranch);
+                    }
+                }
+                order.setDeliveryFee(fee);
+            }
+
+            if (order.getBranch() == null && request.getBranchId() != null) {
+                branchRepository.findById(request.getBranchId())
+                        .filter(Branch::isActive)
+                        .ifPresent(order::setBranch);
             }
             if (order.getBranch() == null) {
                 branchRepository.findByIsActiveTrue().stream().findFirst().ifPresent(order::setBranch);
@@ -244,11 +356,84 @@ public class OrderServiceImpl implements IOrderService {
                 throw new IllegalStateException("عذراً، لا يوجد أي فرع متاح حالياً لاستلام وتوصيل الطلبات (No active branch is currently available to fulfill orders)");
             }
         } else {
+            // Dine-in or Standard In-Store Pickup
             order.setDeliveryFee(BigDecimal.ZERO);
             order.setBranch(resolveBranch(request.getBranchId()));
         }
-        order.setOrderNotes(request.getOrderNotes());
+
+        order.setOrderNotes(cleanCustomerOrderNotes(request.getOrderNotes()));
         return order;
+    }
+
+    private String formatStructuredAddress(Order o) {
+        List<String> parts = new ArrayList<>();
+        if (o.getBuilding() != null && !o.getBuilding().isBlank()) {
+            parts.add("عمارة / مبنى: " + o.getBuilding().trim());
+        }
+        if (o.getStreet() != null && !o.getStreet().isBlank()) {
+            parts.add(o.getStreet().trim());
+        }
+        if (o.getDistrict() != null && !o.getDistrict().isBlank()) {
+            parts.add(o.getDistrict().trim());
+        }
+        if (o.getCity() != null && !o.getCity().isBlank()) {
+            parts.add(o.getCity().trim());
+        }
+        if (o.getFloor() != null && !o.getFloor().isBlank()) {
+            parts.add("الدور: " + o.getFloor().trim());
+        }
+        if (o.getApartment() != null && !o.getApartment().isBlank()) {
+            parts.add("شقة: " + o.getApartment().trim());
+        }
+        if (o.getLandmark() != null && !o.getLandmark().isBlank()) {
+            parts.add("علامة مميزة: " + o.getLandmark().trim());
+        }
+        return String.join("، ", parts);
+    }
+
+    private String formatCarAddress(String plate, String details) {
+        StringBuilder sb = new StringBuilder("🚗 استلام بالسيارة");
+        if (plate != null && !plate.isBlank()) {
+            sb.append(" - لوحة: ").append(plate.trim());
+        }
+        if (details != null && !details.isBlank()) {
+            sb.append(" (").append(details.trim()).append(")");
+        }
+        return sb.toString();
+    }
+
+    private String cleanStreetOnly(String raw) {
+        if (raw == null) return null;
+        return raw.replaceAll("\\[(?:Customer Delivery GPS|Maps|Dist|Fee|Phone)[^\\]]*\\]", "").trim();
+    }
+
+    private String cleanDeliveryAddressString(String raw) {
+        if (raw == null) return null;
+        String clean = raw.replaceAll("\\[(?:Customer Delivery GPS|Maps|Dist|Fee|Phone)[^\\]]*\\]", "").trim();
+        int offerIdx = clean.indexOf(" | Offer:");
+        if (offerIdx != -1) {
+            clean = clean.substring(0, offerIdx).trim();
+        }
+        return clean;
+    }
+
+    private String cleanCustomerOrderNotes(String raw) {
+        if (raw == null) return null;
+        return raw.trim();
+    }
+
+    private String extractPlateFromNotes(String notes) {
+        if (notes == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:لوحة(?:\\s*السيارة)?|plate)\\s*[:：]?\\s*([^|\\[\\],\\n]+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(notes);
+        if (m.find()) return m.group(1).trim();
+        return null;
+    }
+
+    private String extractCarDetailsFromNotes(String notes) {
+        if (notes == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:تفاصيل(?:\\s*السيارة)?|details)\\s*[:：]?\\s*([^|\\[\\],\\n]+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(notes);
+        if (m.find()) return m.group(1).trim();
+        return null;
     }
 
     private UserAddress resolveDeliveryAddress(UUID addressId, UUID userId) {
@@ -257,20 +442,27 @@ public class OrderServiceImpl implements IOrderService {
         }
         UserAddress address = userAddressRepository.findById(addressId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
-        if (!address.getUser().getId().equals(userId)) {
+        if (userId != null && address.getUser() != null && !address.getUser().getId().equals(userId)) {
             throw new AccessDeniedException("Address does not belong to user");
         }
         return address;
     }
 
     private String formatAddress(UserAddress a) {
-        String district = a.getDistrict() != null ? a.getDistrict() : "";
-        String floor = a.getFloor() != null ? a.getFloor() : "-";
-        String apt = a.getApartment() != null ? a.getApartment() : "-";
-        return String.format("%s, %s, %s, Floor: %s, Apt: %s", a.getStreet(), a.getCity(), district, floor, apt);
+        List<String> parts = new ArrayList<>();
+        if (a.getBuilding() != null && !a.getBuilding().isBlank()) parts.add("عمارة: " + a.getBuilding().trim());
+        if (a.getStreet() != null && !a.getStreet().isBlank()) parts.add(cleanStreetOnly(a.getStreet()));
+        if (a.getDistrict() != null && !a.getDistrict().isBlank()) parts.add(a.getDistrict().trim());
+        if (a.getCity() != null && !a.getCity().isBlank()) parts.add(a.getCity().trim());
+        if (a.getFloor() != null && !a.getFloor().isBlank()) parts.add("Floor: " + a.getFloor().trim());
+        if (a.getApartment() != null && !a.getApartment().isBlank()) parts.add("Apt: " + a.getApartment().trim());
+        return String.join(", ", parts);
     }
 
     private boolean isCarDeliveryOrder(PlaceOrderRequest request, UserAddress address) {
+        if (request != null && request.getCarPlate() != null && !request.getCarPlate().isBlank()) {
+            return true;
+        }
         if (isCarDeliveryAddress(address)) {
             return true;
         }
@@ -280,11 +472,19 @@ public class OrderServiceImpl implements IOrderService {
                     || notes.contains("استلام من السيارة") || notes.contains("استلام بالسيارة")
                     || notes.contains("لوحة السيارة");
         }
+        if (request != null && request.getDeliveryAddress() != null) {
+            String addr = request.getDeliveryAddress().toLowerCase();
+            return addr.contains("car delivery") || addr.contains("car pickup")
+                    || addr.contains("استلام من السيارة") || addr.contains("استلام بالسيارة")
+                    || addr.contains("لوحة السيارة");
+        }
         return false;
     }
 
     private boolean isCarDeliveryAddress(UserAddress address) {
         if (address == null) return false;
+        if ("CAR_PICKUP".equalsIgnoreCase(address.getAddressType())) return true;
+        if (address.getCarPlate() != null && !address.getCarPlate().isBlank()) return true;
         String label = address.getLabel() != null ? address.getLabel().toLowerCase().trim() : "";
         String street = address.getStreet() != null ? address.getStreet().toLowerCase().trim() : "";
         String district = address.getDistrict() != null ? address.getDistrict().toLowerCase().trim() : "";

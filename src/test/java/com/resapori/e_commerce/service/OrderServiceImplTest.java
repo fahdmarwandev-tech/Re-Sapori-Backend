@@ -907,4 +907,119 @@ class OrderServiceImplTest {
         // Verify batch query called once
         verify(orderItemAddOnRepository, times(1)).findByOrderItemIdIn(any());
     }
+
+    @Test
+    @DisplayName("placeOrder: Snapshots structured address columns from saved address onto order")
+    void placeOrder_FromSavedAddress_SnapshotsStructuredColumns() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+
+        UUID addressId = UUID.randomUUID();
+        UserAddress address = new UserAddress();
+        address.setId(addressId);
+        address.setUser(testUser);
+        address.setAddressType("DELIVERY");
+        address.setLabel("Home");
+        address.setStreet("Road 9");
+        address.setBuilding("Building 14");
+        address.setFloor("3");
+        address.setApartment("12");
+        address.setDistrict("Maadi");
+        address.setCity("Cairo");
+        address.setLandmark("Near Degla Square");
+        address.setPhoneNumber("01012345678");
+        address.setLat(new BigDecimal("29.9592000"));
+        address.setLng(new BigDecimal("31.2585000"));
+
+        when(userAddressRepository.findById(addressId)).thenReturn(Optional.of(address));
+
+        DeliveryFeeResponse feeResponse = DeliveryFeeResponse.builder()
+                .distanceKm(new BigDecimal("3.00"))
+                .deliveryFee(new BigDecimal("35.00"))
+                .branchId(testBranch.getId())
+                .branchName("Main Branch")
+                .currency("EGP")
+                .build();
+        when(deliveryService.calculateForAddress(addressId, null)).thenReturn(feeResponse);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.DELIVERY);
+        request.setAddressId(addressId);
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        orderService.placeOrder(request);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, atLeastOnce()).save(orderCaptor.capture());
+
+        Order saved = orderCaptor.getValue();
+        assertEquals(address, saved.getAddress());
+        assertEquals("Road 9", saved.getStreet());
+        assertEquals("Building 14", saved.getBuilding());
+        assertEquals("3", saved.getFloor());
+        assertEquals("12", saved.getApartment());
+        assertEquals("Maadi", saved.getDistrict());
+        assertEquals("Cairo", saved.getCity());
+        assertEquals("Near Degla Square", saved.getLandmark());
+        assertEquals("01012345678", saved.getCustomerPhone());
+        assertNotNull(saved.getDeliveryAddress());
+        assertFalse(saved.getDeliveryAddress().contains("[Customer Delivery GPS:"));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Car pickup with dedicated carPlate and carDetails sets zero fee and populates columns")
+    void placeOrder_CarPickupWithDedicatedColumns() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+        when(branchRepository.findByIsActiveTrue()).thenReturn(List.of(testBranch));
+
+        UUID carAddrId = UUID.randomUUID();
+        UserAddress carAddress = new UserAddress();
+        carAddress.setId(carAddrId);
+        carAddress.setUser(testUser);
+        carAddress.setAddressType("CAR_PICKUP");
+        carAddress.setLabel("My Black Elantra");
+        carAddress.setCarPlate("أ ب ج ١٢٣٤");
+        carAddress.setCarDetails("هيونداي النترا سوداء");
+        carAddress.setPhoneNumber("01198765432");
+
+        when(userAddressRepository.findById(carAddrId)).thenReturn(Optional.of(carAddress));
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setAddressId(carAddrId);
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        orderService.placeOrder(request);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, atLeastOnce()).save(orderCaptor.capture());
+
+        Order saved = orderCaptor.getValue();
+        assertEquals(0, BigDecimal.ZERO.compareTo(saved.getDeliveryFee()));
+        assertEquals("أ ب ج ١٢٣٤", saved.getCarPlate());
+        assertEquals("هيونداي النترا سوداء", saved.getCarDetails());
+        assertEquals("01198765432", saved.getCustomerPhone());
+        assertEquals(carAddress, saved.getAddress());
+        assertTrue(saved.getDeliveryAddress().contains("أ ب ج ١٢٣٤"));
+    }
 }

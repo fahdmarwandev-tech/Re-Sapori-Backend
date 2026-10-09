@@ -21,6 +21,30 @@ public class PlaceOrderRequest {
     private OrderType orderType;
     private UUID branchId;
     private UUID addressId;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"delivery_address", "location", "destination"})
+    private String deliveryAddress;
+
+    private String street;
+    private String building;
+    private String floor;
+    private String apartment;
+    private String district;
+    private String city;
+    private String landmark;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"car_plate", "plate"})
+    private String carPlate;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"car_details", "details"})
+    private String carDetails;
+
+    private java.math.BigDecimal lat;
+    private java.math.BigDecimal lng;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"google_maps_url", "mapsUrl", "mapUrl"})
+    private String googleMapsUrl;
+
     @Valid
     private List<OrderItemInput> items;
     @Valid

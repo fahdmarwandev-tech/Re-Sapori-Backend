@@ -17,9 +17,13 @@ public class AddressResponse {
 
     private UUID id;
 
+    private String addressType;
+
     private String label;
 
     private String street;
+
+    private String building;
 
     private String city;
 
@@ -28,6 +32,14 @@ public class AddressResponse {
     private String floor;
 
     private String apartment;
+
+    private String landmark;
+
+    private String phoneNumber;
+
+    private String carPlate;
+
+    private String carDetails;
 
     private BigDecimal lat;
 

@@ -113,12 +113,21 @@ public class UserAddressServiceImpl implements IUserAddressService {
     }
 
     private void applyRequest(UserAddress address, AddressRequest request) {
+        String type = (request.getAddressType() != null && !request.getAddressType().isBlank())
+                ? request.getAddressType().trim().toUpperCase()
+                : "DELIVERY";
+        address.setAddressType(type);
         address.setLabel(request.getLabel());
         address.setStreet(request.getStreet());
+        address.setBuilding(request.getBuilding());
         address.setCity(request.getCity());
         address.setDistrict(request.getDistrict());
         address.setFloor(request.getFloor());
         address.setApartment(request.getApartment());
+        address.setLandmark(request.getLandmark());
+        address.setPhoneNumber(request.getPhoneNumber());
+        address.setCarPlate(request.getCarPlate());
+        address.setCarDetails(request.getCarDetails());
         address.setLat(request.getLat());
         address.setLng(request.getLng());
         address.setDefault(request.isDefault());
@@ -127,12 +136,18 @@ public class UserAddressServiceImpl implements IUserAddressService {
     private AddressResponse toResponse(UserAddress address) {
         return AddressResponse.builder()
                 .id(address.getId())
+                .addressType(address.getAddressType() != null ? address.getAddressType() : "DELIVERY")
                 .label(address.getLabel())
                 .street(address.getStreet())
+                .building(address.getBuilding())
                 .city(address.getCity())
                 .district(address.getDistrict())
                 .floor(address.getFloor())
                 .apartment(address.getApartment())
+                .landmark(address.getLandmark())
+                .phoneNumber(address.getPhoneNumber())
+                .carPlate(address.getCarPlate())
+                .carDetails(address.getCarDetails())
                 .lat(address.getLat())
                 .lng(address.getLng())
                 .isDefault(address.isDefault())
