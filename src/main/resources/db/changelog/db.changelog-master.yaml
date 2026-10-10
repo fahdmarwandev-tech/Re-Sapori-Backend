@@ -87,3 +87,6 @@ databaseChangeLog:
       file: db/changelog/changes/43-expand-address-and-order-columns.sql
   - include:
       file: db/changelog/changes/44-alter-menu-categories-add-is-visible.sql
+  - include:
+      file: db/changelog/changes/45-fix-kids-meal-orange-juice-slot.sql
+

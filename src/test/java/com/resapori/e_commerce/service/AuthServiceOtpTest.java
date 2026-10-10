@@ -5,6 +5,7 @@ import com.resapori.e_commerce.common.security.JwtService;
 import com.resapori.e_commerce.northbound.dto.auth.AuthResponse;
 import com.resapori.e_commerce.northbound.dto.auth.ForgotPasswordRequest;
 import com.resapori.e_commerce.northbound.dto.auth.LoginRequest;
+import com.resapori.e_commerce.northbound.dto.auth.RefreshTokenRequest;
 import com.resapori.e_commerce.northbound.dto.auth.RegisterRequest;
 import com.resapori.e_commerce.northbound.dto.auth.ResetPasswordRequest;
 import com.resapori.e_commerce.northbound.dto.auth.VerifyOtpRequest;
@@ -443,5 +444,80 @@ class AuthServiceOtpTest {
         assertEquals("OTP verified successfully", response.getMessage());
         assertNotNull(response.getResetPasswordToken());
         verify(userOtpRepository).findByEmail("cust.support@domain.com");
+    }
+
+    // ==========================================
+    // 5. Refresh Token & Session Longevity Tests
+    // ==========================================
+
+    @Test
+    @DisplayName("refresh: Should implement sliding expiration and extend validity by 14 days")
+    void refresh_shouldImplementSlidingExpiration() {
+        String tokenString = "valid-refresh-token-uuid";
+        User user = new User();
+        user.setEmail("admin@resapori.com");
+        user.setPasswordHash("hashed");
+
+        RefreshToken existingToken = new RefreshToken();
+        existingToken.setUser(user);
+        existingToken.setToken(tokenString);
+        existingToken.setExpiryDate(LocalDateTime.now().plusDays(1)); // 1 day remaining
+
+        when(refreshTokenRepository.findByToken(tokenString)).thenReturn(Optional.of(existingToken));
+        when(jwtService.generateToken(any())).thenReturn("new-jwt-token");
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.refresh(new RefreshTokenRequest(tokenString));
+
+        assertNotNull(response);
+        assertEquals("new-jwt-token", response.getAccessToken());
+        assertEquals(tokenString, response.getRefreshToken());
+
+        ArgumentCaptor<RefreshToken> tokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(tokenCaptor.capture());
+        RefreshToken savedToken = tokenCaptor.getValue();
+        // Verifies sliding expiration extends past 10 days
+        assertTrue(savedToken.getExpiryDate().isAfter(LocalDateTime.now().plusDays(10)));
+    }
+
+    @Test
+    @DisplayName("refresh: Should throw 401 UNAUTHORIZED when refresh token is expired")
+    void refresh_shouldThrow401WhenTokenExpired() {
+        String tokenString = "expired-token";
+        RefreshToken expiredToken = new RefreshToken();
+        expiredToken.setToken(tokenString);
+        expiredToken.setExpiryDate(LocalDateTime.now().minusDays(1));
+
+        when(refreshTokenRepository.findByToken(tokenString)).thenReturn(Optional.of(expiredToken));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.refresh(new RefreshTokenRequest(tokenString)));
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+        verify(refreshTokenRepository).delete(expiredToken);
+    }
+
+    @Test
+    @DisplayName("login: Should purge expired tokens and preserve multi-device sessions")
+    void login_shouldPurgeExpiredTokensAndPreserveOtherSessions() {
+        LoginRequest request = LoginRequest.builder()
+                .email("admin@resapori.com")
+                .password("Password123")
+                .build();
+
+        User user = new User();
+        user.setEmail("admin@resapori.com");
+        user.setPasswordHash("hashed_password");
+
+        when(userRepository.findByEmail("admin@resapori.com")).thenReturn(Optional.of(user));
+        when(jwtService.generateToken(any())).thenReturn("dummy_jwt");
+        when(refreshTokenRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse res = authService.login(request);
+
+        assertNotNull(res);
+        // Ensure expired tokens are purged
+        verify(refreshTokenRepository).deleteByExpiryDateBefore(any(LocalDateTime.class));
+        // Ensure active sessions are NOT wiped with deleteByUser(user)
+        verify(refreshTokenRepository, never()).deleteByUser(user);
     }
 }

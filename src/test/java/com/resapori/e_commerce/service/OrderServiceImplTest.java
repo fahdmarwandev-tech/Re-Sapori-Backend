@@ -344,6 +344,80 @@ class OrderServiceImplTest {
     }
 
     @Test
+    @DisplayName("placeOrder: Auto-fulfills Kids Meal Orange Juice when drink slot is not submitted by user")
+    void placeOrder_AutoFulfillsKidsMealOrangeJuiceWhenSlotNotSubmitted() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+
+        UUID offerId = UUID.randomUUID();
+        UUID pizzaSlotId = UUID.randomUUID();
+        UUID drinkSlotId = UUID.randomUUID();
+
+        MenuItem orangeJuice = new MenuItem();
+        orangeJuice.setId(UUID.fromString("d0000000-0000-0000-0000-000000000017"));
+        orangeJuice.setNameEn("Orange Juice");
+        orangeJuice.setCurrentPrice(BigDecimal.valueOf(70.00));
+        orangeJuice.setActive(true);
+        orangeJuice.setAvailable(true);
+
+        OfferSlot pizzaSlot = new OfferSlot();
+        pizzaSlot.setId(pizzaSlotId);
+        pizzaSlot.setSlotNameEn("Choose Your Pizza");
+        pizzaSlot.setQuantity(1);
+        pizzaSlot.setFree(false);
+
+        OfferSlot drinkSlot = new OfferSlot();
+        drinkSlot.setId(drinkSlotId);
+        drinkSlot.setSlotNameEn("Orange Juice");
+        drinkSlot.setMenuItem(orangeJuice);
+        drinkSlot.setQuantity(1);
+        drinkSlot.setFree(true);
+
+        Offer kidsMeal = new Offer();
+        kidsMeal.setId(offerId);
+        kidsMeal.setNameEn("Kids Meal");
+        kidsMeal.setActive(true);
+        kidsMeal.setDiscountTarget(DiscountTarget.FIXED_PRICE);
+        kidsMeal.setFixedPrice(BigDecimal.valueOf(250.00));
+        kidsMeal.setSlots(List.of(pizzaSlot, drinkSlot));
+
+        when(offerRepository.findByIdWithSlots(offerId)).thenReturn(Optional.of(kidsMeal));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem, orangeJuice));
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+
+        OrderOfferInput offerInput = new OrderOfferInput();
+        offerInput.setOfferId(offerId);
+        // User ONLY submits pizza selection, NO drink selection
+        offerInput.setSelections(List.of(
+                OfferSelectionInput.builder().slotId(pizzaSlotId).menuItemId(pizzaItem.getId()).build()
+        ));
+        request.setOffers(List.of(offerInput));
+
+        OrderResponse response = orderService.placeOrder(request);
+        assertNotNull(response);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, atLeastOnce()).save(orderCaptor.capture());
+
+        Order saved = orderCaptor.getValue();
+        assertEquals(0, BigDecimal.valueOf(250.00).compareTo(saved.getTotalAmount()));
+
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(itemsCaptor.capture());
+        List<OrderItem> savedItems = itemsCaptor.getValue();
+        assertEquals(2, savedItems.size());
+        assertTrue(savedItems.stream().anyMatch(oi -> oi.getMenuItem().getNameEn().equals("Orange Juice") && oi.isFree()));
+    }
+
+
+    @Test
     @DisplayName("placeOrder: Applies Family Meal Cheapest Item discount (4 pizzas, 2 sauces, 1 free drink)")
     void placeOrder_AppliesFamilyMealCheapestItemDiscount() {
         when(authUtil.getAuthenticatedUser()).thenReturn(testUser);

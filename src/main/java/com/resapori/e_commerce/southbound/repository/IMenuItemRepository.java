@@ -27,4 +27,6 @@ public interface IMenuItemRepository extends JpaRepository<MenuItem, UUID> {
 
     @Query("SELECT m FROM MenuItem m LEFT JOIN FETCH m.category LEFT JOIN FETCH m.addOns WHERE m.id = :id AND m.isActive = true")
     Optional<MenuItem> findActiveById(@Param("id") UUID id);
+
+    Optional<MenuItem> findByNameEnIgnoreCase(String nameEn);
 }

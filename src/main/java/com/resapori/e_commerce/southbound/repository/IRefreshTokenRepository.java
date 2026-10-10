@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,4 +19,7 @@ public interface IRefreshTokenRepository extends JpaRepository<RefreshToken, UUI
     
     @Transactional
     void deleteByUser(User user);
+
+    @Transactional
+    void deleteByExpiryDateBefore(LocalDateTime now);
 }

@@ -620,18 +620,60 @@ public class OrderServiceImpl implements IOrderService {
         if (selections == null || selections.isEmpty()) {
             throw new IllegalArgumentException("Selections required for offer: " + offer.getNameEn());
         }
-        validateSlotQuantities(offer, selections);
+        List<OfferSelectionInput> effectiveSelections = new ArrayList<>(selections);
+        autoFulfillMissingFixedSlots(offer, effectiveSelections);
+        validateSlotQuantities(offer, effectiveSelections);
         UUID bundleGroupId = UUID.randomUUID();
-        Map<UUID, MenuItem> itemMap = fetchSelectionItems(selections);
-        Map<UUID, MenuAddOn> addOnMap = fetchSelectionAddOns(selections);
+        Map<UUID, MenuItem> itemMap = fetchSelectionItems(effectiveSelections);
+        Map<UUID, MenuAddOn> addOnMap = fetchSelectionAddOns(effectiveSelections);
         Map<UUID, OfferSlot> slotMap = offer.getSlots().stream()
                 .collect(Collectors.toMap(OfferSlot::getId, s -> s));
 
-        List<PriceContext> contexts = buildSelectionContexts(selections, slotMap, itemMap, addOnMap);
+        List<PriceContext> contexts = buildSelectionContexts(effectiveSelections, slotMap, itemMap, addOnMap);
         applyOfferPricing(offer, contexts);
         return contexts.stream()
                 .map(ctx -> createOfferOrderItem(ctx, offer, bundleGroupId, addOnMap))
                 .toList();
+    }
+
+    private void autoFulfillMissingFixedSlots(Offer offer, List<OfferSelectionInput> selections) {
+        if (offer.getSlots() == null || offer.getSlots().isEmpty()) return;
+        Map<UUID, Integer> submitted = new HashMap<>();
+        for (OfferSelectionInput sel : selections) {
+            int qty = sel.getQuantity() != null && sel.getQuantity() > 0 ? sel.getQuantity() : 1;
+            submitted.merge(sel.getSlotId(), qty, Integer::sum);
+        }
+
+        boolean isKidsMeal = offer.getNameEn() != null && offer.getNameEn().equalsIgnoreCase("Kids Meal");
+
+        for (OfferSlot slot : offer.getSlots()) {
+            int expected = slot.getQuantity() != null ? slot.getQuantity() : 1;
+            int actual = submitted.getOrDefault(slot.getId(), 0);
+            if (actual < expected) {
+                MenuItem fixedItem = slot.getMenuItem();
+                if (fixedItem == null && isKidsMeal) {
+                    boolean isDrinkSlot = (slot.getSlotNameEn() != null && slot.getSlotNameEn().toLowerCase().contains("drink"))
+                            || (slot.getCategory() != null && slot.getCategory().getNameEn() != null && slot.getCategory().getNameEn().equalsIgnoreCase("Drinks"));
+                    if (isDrinkSlot) {
+                        UUID ojId = UUID.fromString("d0000000-0000-0000-0000-000000000017");
+                        fixedItem = menuItemRepository.findById(ojId)
+                                .orElseGet(() -> menuItemRepository.findByNameEnIgnoreCase("Orange Juice").orElse(null));
+                    }
+                }
+                if (fixedItem != null) {
+                    int missing = expected - actual;
+                    for (int i = 0; i < missing; i++) {
+                        selections.add(OfferSelectionInput.builder()
+                                .slotId(slot.getId())
+                                .menuItemId(fixedItem.getId())
+                                .quantity(1)
+                                .size(ItemSize.REGULAR)
+                                .build());
+                    }
+                    submitted.put(slot.getId(), expected);
+                }
+            }
+        }
     }
 
     private Map<UUID, MenuItem> fetchSelectionItems(List<OfferSelectionInput> selections) {

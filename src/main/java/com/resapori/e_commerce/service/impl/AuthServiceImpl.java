@@ -99,7 +99,8 @@ public class AuthServiceImpl implements IAuthService {
 
         String jwtToken = jwtService.generateToken(new CustomUserDetails(user));
 
-        refreshTokenRepository.deleteByUser(user);
+        // Purge expired tokens across sessions without invalidating active sessions on other devices
+        refreshTokenRepository.deleteByExpiryDateBefore(LocalDateTime.now());
         RefreshToken refreshToken = createRefreshToken(user);
 
         return AuthResponse.builder()
@@ -110,6 +111,10 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     public AuthResponse refresh(RefreshTokenRequest request) {
+        if (request == null || request.getRefreshToken() == null || request.getRefreshToken().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh token is required");
+        }
+
         Optional<RefreshToken> tokenOpt = refreshTokenRepository.findByToken(request.getRefreshToken());
 
         if (tokenOpt.isEmpty() || tokenOpt.get().getExpiryDate().isBefore(LocalDateTime.now())) {
@@ -118,6 +123,10 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         RefreshToken refreshToken = tokenOpt.get();
+        // Sliding expiration: extend refresh token validity by 14 days on each successful refresh
+        refreshToken.setExpiryDate(LocalDateTime.now().plusDays(14));
+        refreshTokenRepository.save(refreshToken);
+
         String jwtToken = jwtService.generateToken(new CustomUserDetails(refreshToken.getUser()));
 
         return AuthResponse.builder()
@@ -128,8 +137,10 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     public void logout(RefreshTokenRequest request) {
-        refreshTokenRepository.findByToken(request.getRefreshToken())
-                .ifPresent(refreshTokenRepository::delete);
+        if (request != null && request.getRefreshToken() != null) {
+            refreshTokenRepository.findByToken(request.getRefreshToken())
+                    .ifPresent(refreshTokenRepository::delete);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -163,7 +174,7 @@ public class AuthServiceImpl implements IAuthService {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setExpiryDate(LocalDateTime.now().plusDays(7));
+        refreshToken.setExpiryDate(LocalDateTime.now().plusDays(14));
         return refreshTokenRepository.save(refreshToken);
     }
 
