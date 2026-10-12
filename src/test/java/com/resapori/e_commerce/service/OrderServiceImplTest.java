@@ -1096,4 +1096,68 @@ class OrderServiceImplTest {
         assertEquals(carAddress, saved.getAddress());
         assertTrue(saved.getDeliveryAddress().contains("أ ب ج ١٢٣٤"));
     }
+
+    @Test
+    @DisplayName("updateStatus: Cashier can mark pickup order as READY from PREPARING")
+    void updateStatus_CashierMarksPickupOrderReady() {
+        UUID orderId = UUID.randomUUID();
+        Order order = new Order();
+        order.setId(orderId);
+        order.setOrderType(OrderType.PICKUP);
+        order.setStatus(OrderStatus.PREPARING);
+        order.setBranch(testBranch);
+
+        User cashierUser = new User();
+        cashierUser.setId(UUID.randomUUID());
+        cashierUser.setBranch(testBranch);
+
+        when(orderRepository.findByIdWithUserAndBranch(orderId)).thenReturn(Optional.of(order));
+        when(authUtil.getAuthenticatedUser()).thenReturn(cashierUser);
+
+        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        doReturn(List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_CASHIER")))
+                .when(auth).getAuthorities();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+
+        UpdateOrderStatusRequest req = new UpdateOrderStatusRequest();
+        req.setStatus(OrderStatus.READY);
+
+        OrderResponse res = orderService.updateStatus(orderId, req);
+        assertNotNull(res);
+        assertEquals(OrderStatus.READY, order.getStatus());
+    }
+
+    @Test
+    @DisplayName("updateStatus: Cashier cannot mark delivery order as READY")
+    void updateStatus_CashierCannotMarkDeliveryOrderReady() {
+        UUID orderId = UUID.randomUUID();
+        Order order = new Order();
+        order.setId(orderId);
+        order.setOrderType(OrderType.DELIVERY);
+        order.setStatus(OrderStatus.PREPARING);
+        order.setBranch(testBranch);
+
+        User cashierUser = new User();
+        cashierUser.setId(UUID.randomUUID());
+        cashierUser.setBranch(testBranch);
+
+        when(orderRepository.findByIdWithUserAndBranch(orderId)).thenReturn(Optional.of(order));
+        when(authUtil.getAuthenticatedUser()).thenReturn(cashierUser);
+
+        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        doReturn(List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_CASHIER")))
+                .when(auth).getAuthorities();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UpdateOrderStatusRequest req = new UpdateOrderStatusRequest();
+        req.setStatus(OrderStatus.READY);
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> orderService.updateStatus(orderId, req));
+    }
 }

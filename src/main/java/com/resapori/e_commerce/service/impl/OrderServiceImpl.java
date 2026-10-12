@@ -922,53 +922,62 @@ public class OrderServiceImpl implements IOrderService {
         if (isAdmin()) {
             return; // Admin has full transition control
         }
+        validateBranchAccess(order);
+        OrderStatus prev = order.getStatus();
 
+        if (isCashier()) {
+            validateCashierStatusUpdate(order.getOrderType(), prev, newStatus);
+            return;
+        }
+
+        if (isDelivery()) {
+            validateDeliveryStatusUpdate(order.getOrderType(), prev, newStatus);
+            return;
+        }
+
+        throw new AccessDeniedException("Unauthorized to update order status");
+    }
+
+    private void validateBranchAccess(Order order) {
         User user = authUtil.getAuthenticatedUser();
         if (user == null) {
             throw new AccessDeniedException("Must be authenticated to update order status");
         }
-
         if (user.getBranch() == null || order.getBranch() == null || !order.getBranch().getId().equals(user.getBranch().getId())) {
             throw new AccessDeniedException("Cannot update orders belonging to another branch");
         }
+    }
 
-        OrderStatus prev = order.getStatus();
-
-        if (isCashier()) {
-            if (order.getOrderType() == OrderType.DELIVERY) {
-                // Cashier on delivery: only PENDING -> PREPARING
-                if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
-                    return;
-                }
-                throw new AccessDeniedException("Cashiers can only start preparation (PREPARING) on delivery orders");
-            } else {
-                // Cashier on pickup or dine-in: PENDING -> PREPARING, and PREPARING/READY -> DELIVERED (mark done)
-                if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
-                    return;
-                }
-                if ((prev == OrderStatus.PREPARING || prev == OrderStatus.READY) && newStatus == OrderStatus.DELIVERED) {
-                    return;
-                }
-                throw new AccessDeniedException("Cashiers can only start prep or mark pickup orders as completed");
-            }
-        }
-
-        if (isDelivery()) {
-            if (order.getOrderType() != OrderType.DELIVERY) {
-                throw new AccessDeniedException("Delivery staff can only update delivery orders");
-            }
-            // 1. Delivery claims order: PREPARING -> READY
-            if (prev == OrderStatus.PREPARING && newStatus == OrderStatus.READY) {
+    private void validateCashierStatusUpdate(OrderType orderType, OrderStatus prev, OrderStatus newStatus) {
+        if (orderType == OrderType.DELIVERY) {
+            if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
                 return;
             }
-            // 2. Delivery marks order delivered: READY -> DELIVERED
-            if (prev == OrderStatus.READY && newStatus == OrderStatus.DELIVERED) {
-                return;
-            }
-            throw new AccessDeniedException("Delivery staff can only mark orders as READY (claimed) or DELIVERED");
+            throw new AccessDeniedException("Cashiers can only start preparation (PREPARING) on delivery orders");
         }
+        if ((prev == OrderStatus.PENDING || prev == OrderStatus.PAID) && newStatus == OrderStatus.PREPARING) {
+            return;
+        }
+        if (prev == OrderStatus.PREPARING && newStatus == OrderStatus.READY) {
+            return;
+        }
+        if ((prev == OrderStatus.PREPARING || prev == OrderStatus.READY) && newStatus == OrderStatus.DELIVERED) {
+            return;
+        }
+        throw new AccessDeniedException("Cashiers can only start prep, mark ready, or complete pickup orders");
+    }
 
-        throw new AccessDeniedException("Unauthorized to update order status");
+    private void validateDeliveryStatusUpdate(OrderType orderType, OrderStatus prev, OrderStatus newStatus) {
+        if (orderType != OrderType.DELIVERY) {
+            throw new AccessDeniedException("Delivery staff can only update delivery orders");
+        }
+        if (prev == OrderStatus.PREPARING && newStatus == OrderStatus.READY) {
+            return;
+        }
+        if (prev == OrderStatus.READY && newStatus == OrderStatus.DELIVERED) {
+            return;
+        }
+        throw new AccessDeniedException("Delivery staff can only mark orders as READY (claimed) or DELIVERED");
     }
 
     private OrderResponse mapToResponse(Order order, List<OrderItem> items) {
