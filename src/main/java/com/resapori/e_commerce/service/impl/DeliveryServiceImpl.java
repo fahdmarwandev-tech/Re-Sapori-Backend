@@ -28,7 +28,7 @@ public class DeliveryServiceImpl implements IDeliveryService {
 
     public static final BigDecimal BASE_DISTANCE = BigDecimal.valueOf(2.0);
     public static final BigDecimal BASE_FEE = BigDecimal.valueOf(35.00);
-    public static final BigDecimal RATE_PER_KM = BigDecimal.valueOf(7.00);
+    public static final BigDecimal RATE_PER_KM = BigDecimal.valueOf(18.00);
 
     // Default Re-Sapori kitchen hub coordinates (6th of October, Giza)
     public static final BigDecimal DEFAULT_RESTAURANT_LAT = BigDecimal.valueOf(29.996688);

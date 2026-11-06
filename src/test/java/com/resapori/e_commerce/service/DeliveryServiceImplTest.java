@@ -65,25 +65,25 @@ class DeliveryServiceImplTest {
     }
 
     @Test
-    @DisplayName("calculateDeliveryFee: When distance > 2.0 km, fee is 35 + 7 * (d - 2) rounded to nearest integer")
+    @DisplayName("calculateDeliveryFee: When distance > 2.0 km, fee is 35 + 18 * (d - 2) rounded to nearest integer")
     void calculateDeliveryFee_Over2Km_CalculatedFee() {
-        // d = 3 km -> 35 + 7(1) = 42.00 EGP
-        assertEquals(new BigDecimal("42.00"), deliveryService.calculateDeliveryFee(new BigDecimal("3.00")));
+        // d = 3 km -> 35 + 18(1) = 53.00 EGP
+        assertEquals(new BigDecimal("53.00"), deliveryService.calculateDeliveryFee(new BigDecimal("3.00")));
 
-        // d = 4 km -> 35 + 7(2) = 49.00 EGP
-        assertEquals(new BigDecimal("49.00"), deliveryService.calculateDeliveryFee(new BigDecimal("4.00")));
+        // d = 4 km -> 35 + 18(2) = 71.00 EGP
+        assertEquals(new BigDecimal("71.00"), deliveryService.calculateDeliveryFee(new BigDecimal("4.00")));
 
-        // d = 5 km -> 35 + 7(3) = 56.00 EGP
-        assertEquals(new BigDecimal("56.00"), deliveryService.calculateDeliveryFee(new BigDecimal("5.00")));
+        // d = 5 km -> 35 + 18(3) = 89.00 EGP
+        assertEquals(new BigDecimal("89.00"), deliveryService.calculateDeliveryFee(new BigDecimal("5.00")));
 
-        // d = 6.8 km -> 35 + 7(4.8) = 35 + 33.6 = 68.60 -> rounded to nearest integer = 69.00 EGP
-        assertEquals(new BigDecimal("69.00"), deliveryService.calculateDeliveryFee(new BigDecimal("6.80")));
+        // d = 6.8 km -> 35 + 18(4.8) = 35 + 86.4 = 121.40 -> rounded to nearest integer = 121.00 EGP
+        assertEquals(new BigDecimal("121.00"), deliveryService.calculateDeliveryFee(new BigDecimal("6.80")));
 
-        // d = 6.2 km -> 35 + 7(4.2) = 35 + 29.4 = 64.40 -> rounded to nearest integer = 64.00 EGP
-        assertEquals(new BigDecimal("64.00"), deliveryService.calculateDeliveryFee(new BigDecimal("6.20")));
+        // d = 6.2 km -> 35 + 18(4.2) = 35 + 75.6 = 110.60 -> rounded to nearest integer = 111.00 EGP
+        assertEquals(new BigDecimal("111.00"), deliveryService.calculateDeliveryFee(new BigDecimal("6.20")));
 
-        // d = 10 km -> 35 + 7(8) = 35 + 56 = 91.00 EGP
-        assertEquals(new BigDecimal("91.00"), deliveryService.calculateDeliveryFee(new BigDecimal("10.00")));
+        // d = 10 km -> 35 + 18(8) = 35 + 144 = 179.00 EGP
+        assertEquals(new BigDecimal("179.00"), deliveryService.calculateDeliveryFee(new BigDecimal("10.00")));
     }
 
     @Test
