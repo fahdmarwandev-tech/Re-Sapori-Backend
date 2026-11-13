@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,7 +34,13 @@ public interface IPromoCodeRepository extends JpaRepository<PromoCode, UUID> {
 
     Optional<PromoCode> findByCodeIgnoreCaseAndIsActiveTrue(String code);
 
+    List<PromoCode> findByIsActiveTrueOrderByCreatedAtDesc();
+
     boolean existsByCodeIgnoreCase(String code);
+
+    boolean existsByCodeIgnoreCaseAndIsActiveTrue(String code);
+
+    boolean existsByCodeIgnoreCaseAndIsActiveTrueAndIdNot(String code, UUID id);
 
     /**
      * Atomically increments {@code current_uses} by 1 for the given promo code.

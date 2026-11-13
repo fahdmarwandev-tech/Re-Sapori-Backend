@@ -54,7 +54,7 @@ import java.time.LocalDateTime;
 public class PromoCode extends BaseEntity {
 
     /** The promo string the customer enters at checkout (e.g. {@code SUMMER20}). */
-    @Column(name = "code", nullable = false, unique = true, length = 50)
+    @Column(name = "code", nullable = false, length = 50)
     private String code;
 
     @Column(name = "description_en", columnDefinition = "TEXT")

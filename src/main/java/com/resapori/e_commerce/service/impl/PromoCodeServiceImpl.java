@@ -33,12 +33,13 @@ public class PromoCodeServiceImpl implements IPromoCodeService {
             throw new IllegalArgumentException("Promo code cannot be empty");
         }
         String cleanCode = request.getCode().trim().toUpperCase();
-        if (repository.existsByCodeIgnoreCase(cleanCode)) {
+        if (repository.existsByCodeIgnoreCaseAndIsActiveTrue(cleanCode)) {
             throw new IllegalArgumentException("Promo code already exists: " + cleanCode);
         }
         request.setCode(cleanCode);
         PromoCode promo = mapper.toEntity(request);
         promo.setCode(cleanCode);
+        promo.setActive(true);
         attachAssociations(promo, request);
         return mapper.toResponse(repository.save(promo));
     }
@@ -46,19 +47,19 @@ public class PromoCodeServiceImpl implements IPromoCodeService {
     @Override
     @Transactional(readOnly = true)
     public PromoCodeResponse getById(UUID id) {
-        return mapper.toResponse(findByIdOrThrow(id));
+        return mapper.toResponse(findActiveByIdOrThrow(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PromoCodeResponse> getAll() {
-        return mapper.toResponseList(repository.findAll());
+        return mapper.toResponseList(repository.findByIsActiveTrueOrderByCreatedAtDesc());
     }
 
     @Override
     @Transactional
     public PromoCodeResponse update(UUID id, PromoCodeRequest request) {
-        PromoCode promo = findByIdOrThrow(id);
+        PromoCode promo = findActiveByIdOrThrow(id);
         applyUpdates(promo, request);
         attachAssociations(promo, request);
         return mapper.toResponse(repository.save(promo));
@@ -67,7 +68,7 @@ public class PromoCodeServiceImpl implements IPromoCodeService {
     @Override
     @Transactional
     public void delete(UUID id) {
-        PromoCode promo = findByIdOrThrow(id);
+        PromoCode promo = findActiveByIdOrThrow(id);
         promo.setActive(false);
         repository.save(promo);
     }
@@ -98,7 +99,11 @@ public class PromoCodeServiceImpl implements IPromoCodeService {
 
     private void applyUpdates(PromoCode promo, PromoCodeRequest req) {
         if (req.getCode() != null && !req.getCode().trim().isBlank()) {
-            promo.setCode(req.getCode().trim().toUpperCase());
+            String cleanCode = req.getCode().trim().toUpperCase();
+            if (repository.existsByCodeIgnoreCaseAndIsActiveTrueAndIdNot(cleanCode, promo.getId())) {
+                throw new IllegalArgumentException("Promo code already exists: " + cleanCode);
+            }
+            promo.setCode(cleanCode);
         }
         promo.setDiscountType(req.getDiscountType());
         promo.setDiscountValue(req.getDiscountValue());
@@ -120,8 +125,12 @@ public class PromoCodeServiceImpl implements IPromoCodeService {
         }
     }
 
-    private PromoCode findByIdOrThrow(UUID id) {
-        return repository.findById(id)
+    private PromoCode findActiveByIdOrThrow(UUID id) {
+        PromoCode promo = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PromoCode not found with id: " + id));
+        if (!promo.isActive()) {
+            throw new ResourceNotFoundException("PromoCode not found with id: " + id);
+        }
+        return promo;
     }
 }

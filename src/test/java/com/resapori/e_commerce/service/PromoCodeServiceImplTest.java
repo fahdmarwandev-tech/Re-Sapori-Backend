@@ -20,7 +20,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -106,7 +108,7 @@ class PromoCodeServiceImplTest {
     }
 
     @Test
-    @DisplayName("create: Saves and returns promo code")
+    @DisplayName("create: Saves and returns promo code when no active code with same name exists")
     void create_Success() {
         PromoCodeRequest request = PromoCodeRequest.builder()
                 .code("NEW20")
@@ -114,13 +116,68 @@ class PromoCodeServiceImplTest {
                 .discountValue(BigDecimal.valueOf(20))
                 .build();
 
-        when(repository.existsByCodeIgnoreCase("NEW20")).thenReturn(false);
+        when(repository.existsByCodeIgnoreCaseAndIsActiveTrue("NEW20")).thenReturn(false);
         when(mapper.toEntity(request)).thenReturn(testPromo);
         when(repository.save(testPromo)).thenReturn(testPromo);
         when(mapper.toResponse(testPromo)).thenReturn(testResponse);
 
         PromoCodeResponse result = promoCodeService.create(request);
         assertNotNull(result);
+        assertTrue(testPromo.isActive());
+        verify(repository).existsByCodeIgnoreCaseAndIsActiveTrue("NEW20");
+        verify(repository).save(testPromo);
+    }
+
+    @Test
+    @DisplayName("create: Throws IllegalArgumentException when an active promo code with same name exists")
+    void create_ActiveDuplicateThrows() {
+        PromoCodeRequest request = PromoCodeRequest.builder()
+                .code("sapori10")
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(BigDecimal.valueOf(10))
+                .build();
+
+        when(repository.existsByCodeIgnoreCaseAndIsActiveTrue("SAPORI10")).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class, () -> promoCodeService.create(request));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getAll: Returns only active promo codes")
+    void getAll_ReturnsOnlyActive() {
+        when(repository.findByIsActiveTrueOrderByCreatedAtDesc()).thenReturn(List.of(testPromo));
+        when(mapper.toResponseList(List.of(testPromo))).thenReturn(List.of(testResponse));
+
+        List<PromoCodeResponse> result = promoCodeService.getAll();
+
+        assertEquals(1, result.size());
+        verify(repository).findByIsActiveTrueOrderByCreatedAtDesc();
+        verify(repository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("getById: Throws ResourceNotFoundException when promo code is inactive")
+    void getById_InactiveThrows() {
+        UUID id = UUID.randomUUID();
+        testPromo.setId(id);
+        testPromo.setActive(false);
+        when(repository.findById(id)).thenReturn(Optional.of(testPromo));
+
+        assertThrows(ResourceNotFoundException.class, () -> promoCodeService.getById(id));
+    }
+
+    @Test
+    @DisplayName("delete: Marks promo code inactive and saves")
+    void delete_MarksInactive() {
+        UUID id = UUID.randomUUID();
+        testPromo.setId(id);
+        testPromo.setActive(true);
+        when(repository.findById(id)).thenReturn(Optional.of(testPromo));
+
+        promoCodeService.delete(id);
+
+        assertFalse(testPromo.isActive());
         verify(repository).save(testPromo);
     }
 }
