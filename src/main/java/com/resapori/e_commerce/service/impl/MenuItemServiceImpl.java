@@ -2,6 +2,7 @@ package com.resapori.e_commerce.service.impl;
 
 import com.resapori.e_commerce.common.exception.ResourceNotFoundException;
 import com.resapori.e_commerce.northbound.dto.menu.MenuAddOnRequest;
+import com.resapori.e_commerce.northbound.dto.menu.MenuAddOnResponse;
 import com.resapori.e_commerce.northbound.dto.menu.MenuItemRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuItemResponse;
 import com.resapori.e_commerce.service.IMenuItemService;
@@ -10,6 +11,7 @@ import com.resapori.e_commerce.southbound.entity.MenuCategory;
 import com.resapori.e_commerce.southbound.entity.MenuItem;
 import com.resapori.e_commerce.southbound.mapper.MenuAddOnMapper;
 import com.resapori.e_commerce.southbound.mapper.MenuItemMapper;
+import com.resapori.e_commerce.southbound.repository.IMenuAddOnRepository;
 import com.resapori.e_commerce.southbound.repository.IMenuCategoryRepository;
 import com.resapori.e_commerce.southbound.repository.IMenuItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +21,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -28,6 +36,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
 
     private final IMenuItemRepository repository;
     private final IMenuCategoryRepository categoryRepository;
+    private final IMenuAddOnRepository addOnRepository;
     private final MenuItemMapper mapper;
     private final MenuAddOnMapper addOnMapper;
 
@@ -45,7 +54,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
         }
 
         entity = repository.save(entity);
-        return mapper.toResponse(entity);
+        return enrichWithCategoryAddOns(mapper.toResponse(entity));
     }
 
     @Override
@@ -53,7 +62,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
     public MenuItemResponse getById(UUID id) {
         MenuItem item = repository.findActiveById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found with id: " + id));
-        return mapper.toResponse(item);
+        return enrichWithCategoryAddOns(mapper.toResponse(item));
     }
 
     @Override
@@ -62,7 +71,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
         List<MenuItem> items = isAdmin()
                 ? repository.findAllActive()
                 : repository.findAllActiveAndAvailable();
-        return mapper.toResponseList(items);
+        return enrichWithCategoryAddOns(mapper.toResponseList(items));
     }
 
     @Override
@@ -71,7 +80,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
         List<MenuItem> items = isAdmin()
                 ? repository.findActiveByCategoryId(categoryId)
                 : repository.findActiveAndAvailableByCategoryId(categoryId);
-        return mapper.toResponseList(items);
+        return enrichWithCategoryAddOns(mapper.toResponseList(items));
     }
 
     @Override
@@ -81,7 +90,7 @@ public class MenuItemServiceImpl implements IMenuItemService {
         applyBasicFields(entity, request);
         applyPriceAndFlags(entity, request);
         applyCategorization(entity, request);
-        return mapper.toResponse(repository.save(entity));
+        return enrichWithCategoryAddOns(mapper.toResponse(repository.save(entity)));
     }
 
     private void applyBasicFields(MenuItem entity, MenuItemRequest req) {
@@ -124,9 +133,60 @@ public class MenuItemServiceImpl implements IMenuItemService {
         for (MenuAddOnRequest req : requests) {
             MenuAddOn addOn = addOnMapper.toEntity(req);
             addOn.setMenuItem(owner);
+            addOn.setCategory(null);
             result.add(addOn);
         }
         return result;
+    }
+
+    private MenuItemResponse enrichWithCategoryAddOns(MenuItemResponse response) {
+        if (response == null) return null;
+        enrichWithCategoryAddOns(List.of(response));
+        return response;
+    }
+
+    private List<MenuItemResponse> enrichWithCategoryAddOns(List<MenuItemResponse> responses) {
+        if (responses == null || responses.isEmpty()) return responses;
+        Set<UUID> categoryIds = responses.stream()
+                .map(MenuItemResponse::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (categoryIds.isEmpty()) return responses;
+
+        Map<UUID, List<MenuAddOnResponse>> catAddOnsMap = addOnRepository
+                .findByCategoryIdInAndIsActiveTrue(categoryIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        a -> a.getCategory().getId(),
+                        Collectors.mapping(addOnMapper::toResponse, Collectors.toList())
+                ));
+
+        for (MenuItemResponse res : responses) {
+            List<MenuAddOnResponse> inherited = catAddOnsMap.get(res.getCategoryId());
+            if (inherited == null || inherited.isEmpty()) continue;
+
+            List<MenuAddOnResponse> merged = new ArrayList<>();
+            Set<String> seenNames = new HashSet<>();
+
+            for (MenuAddOnResponse catAddOn : inherited) {
+                merged.add(catAddOn);
+                if (catAddOn.getNameEn() != null) {
+                    seenNames.add(catAddOn.getNameEn().trim().toLowerCase(Locale.ROOT));
+                }
+            }
+            if (res.getAddOns() != null) {
+                for (MenuAddOnResponse itemAddOn : res.getAddOns()) {
+                    String key = itemAddOn.getNameEn() != null
+                            ? itemAddOn.getNameEn().trim().toLowerCase(Locale.ROOT)
+                            : "";
+                    if (key.isEmpty() || !seenNames.contains(key)) {
+                        merged.add(itemAddOn);
+                    }
+                }
+            }
+            res.setAddOns(merged);
+        }
+        return responses;
     }
 
     private MenuItem findByIdOrThrow(UUID id) {

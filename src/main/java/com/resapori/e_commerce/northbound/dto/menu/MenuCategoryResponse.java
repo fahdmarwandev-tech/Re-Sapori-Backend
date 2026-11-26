@@ -1,5 +1,6 @@
 package com.resapori.e_commerce.northbound.dto.menu;
 
+import java.util.List;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,8 @@ public class MenuCategoryResponse {
 
     @JsonProperty("isVisible")
     private Boolean isVisible;
+
+    private List<MenuAddOnResponse> addOns;
 
     @JsonProperty("active")
     public Boolean getActive() {

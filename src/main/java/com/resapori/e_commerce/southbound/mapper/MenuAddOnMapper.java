@@ -12,9 +12,11 @@ import java.util.List;
 public interface MenuAddOnMapper {
 
     @Mapping(target = "menuItem", ignore = true)
+    @Mapping(target = "category", ignore = true)
     MenuAddOn toEntity(MenuAddOnRequest request);
 
     @Mapping(source = "active", target = "active")
+    @Mapping(target = "categoryLevel", expression = "java(entity.getCategory() != null && entity.getMenuItem() == null)")
     MenuAddOnResponse toResponse(MenuAddOn entity);
 
     List<MenuAddOnResponse> toResponseList(List<MenuAddOn> entities);

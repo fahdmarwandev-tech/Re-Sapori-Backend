@@ -1,10 +1,13 @@
 package com.resapori.e_commerce.service.impl;
 
 import com.resapori.e_commerce.common.exception.ResourceNotFoundException;
+import com.resapori.e_commerce.northbound.dto.menu.MenuAddOnRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuCategoryRequest;
 import com.resapori.e_commerce.northbound.dto.menu.MenuCategoryResponse;
 import com.resapori.e_commerce.service.IMenuCategoryService;
+import com.resapori.e_commerce.southbound.entity.MenuAddOn;
 import com.resapori.e_commerce.southbound.entity.MenuCategory;
+import com.resapori.e_commerce.southbound.mapper.MenuAddOnMapper;
 import com.resapori.e_commerce.southbound.mapper.MenuCategoryMapper;
 import com.resapori.e_commerce.southbound.repository.IMenuCategoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +16,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -23,6 +28,7 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
 
     private final IMenuCategoryRepository repository;
     private final MenuCategoryMapper mapper;
+    private final MenuAddOnMapper addOnMapper;
 
     @Override
     @Transactional
@@ -30,6 +36,17 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
         MenuCategory entity = mapper.toEntity(request);
         if (request.getIsVisible() != null) {
             entity.setVisible(request.getIsVisible());
+        }
+
+        if (request.getAddOns() != null) {
+            applyCategoryAddOns(entity, request.getAddOns());
+        } else if (isDefaultComboEligible(request.getNameEn())) {
+            MenuAddOn combo = new MenuAddOn();
+            combo.setCategory(entity);
+            combo.setNameEn("Make it a Combo");
+            combo.setNameAr("خليها كومبو");
+            combo.setPrice(BigDecimal.valueOf(50.00));
+            entity.getAddOns().add(combo);
         }
 
         List<MenuCategory> existing = new ArrayList<>(repository.findByIsActiveTrueOrderByDisplayOrderAsc());
@@ -81,6 +98,9 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
         if (request.getIsVisible() != null) {
             entity.setVisible(request.getIsVisible());
         }
+        if (request.getAddOns() != null) {
+            applyCategoryAddOns(entity, request.getAddOns());
+        }
 
         Integer newOrder = request.getDisplayOrder();
         List<MenuCategory> existing = new ArrayList<>(repository.findByIsActiveTrueOrderByDisplayOrderAsc());
@@ -125,8 +145,29 @@ public class MenuCategoryServiceImpl implements IMenuCategoryService {
         repository.saveAll(remaining);
     }
 
+    private void applyCategoryAddOns(MenuCategory owner, List<MenuAddOnRequest> requests) {
+        owner.getAddOns().clear();
+        for (MenuAddOnRequest req : requests) {
+            MenuAddOn addOn = addOnMapper.toEntity(req);
+            addOn.setCategory(owner);
+            addOn.setMenuItem(null);
+            owner.getAddOns().add(addOn);
+        }
+    }
+
+    private boolean isDefaultComboEligible(String nameEn) {
+        if (nameEn == null) return false;
+        String norm = nameEn.trim().toLowerCase(Locale.ROOT);
+        return !norm.contains("sauc")
+                && !norm.contains("dip")
+                && !norm.contains("dessert")
+                && !norm.contains("sweet")
+                && !norm.contains("drink")
+                && !norm.contains("beverag");
+    }
+
     private MenuCategory findByIdOrThrow(UUID id) {
-        return repository.findById(id)
+        return repository.findByIdWithAddOns(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuCategory not found with id: " + id));
     }
 

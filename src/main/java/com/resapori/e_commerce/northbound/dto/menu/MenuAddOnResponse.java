@@ -18,4 +18,5 @@ public class MenuAddOnResponse {
     private String nameAr;
     private BigDecimal price;
     private Boolean active;
+    private Boolean categoryLevel;
 }

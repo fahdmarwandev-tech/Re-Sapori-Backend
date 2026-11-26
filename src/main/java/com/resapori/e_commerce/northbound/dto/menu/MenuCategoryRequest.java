@@ -1,10 +1,13 @@
 package com.resapori.e_commerce.northbound.dto.menu;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @Builder
@@ -18,4 +21,6 @@ public class MenuCategoryRequest {
     private String subtitleEn;
     private String subtitleAr;
     private Boolean isVisible;
+    @Valid
+    private List<MenuAddOnRequest> addOns;
 }

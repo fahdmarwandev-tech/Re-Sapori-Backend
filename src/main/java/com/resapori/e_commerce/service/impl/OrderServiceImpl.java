@@ -561,7 +561,14 @@ public class OrderServiceImpl implements IOrderService {
         if (input.getAddOnIds() != null && !input.getAddOnIds().isEmpty()) {
             for (UUID addOnId : input.getAddOnIds()) {
                 MenuAddOn addOn = addOnMap.get(addOnId);
-                if (addOn != null) {
+                if (addOn != null && addOn.isActive()) {
+                    if (addOn.getMenuItem() != null && !addOn.getMenuItem().getId().equals(menuItem.getId())) {
+                        throw new IllegalArgumentException("Add-on \"" + addOn.getNameEn() + "\" does not apply to item \"" + menuItem.getNameEn() + "\"");
+                    }
+                    if (addOn.getCategory() != null && menuItem.getCategory() != null
+                            && !addOn.getCategory().getId().equals(menuItem.getCategory().getId())) {
+                        throw new IllegalArgumentException("Add-on \"" + addOn.getNameEn() + "\" is not available for category \"" + menuItem.getCategory().getNameEn() + "\"");
+                    }
                     BigDecimal price = addOn.getPrice() != null ? addOn.getPrice() : BigDecimal.ZERO;
                     addOnsTotal = addOnsTotal.add(price);
 
