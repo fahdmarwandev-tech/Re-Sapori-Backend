@@ -10,6 +10,7 @@ import java.util.UUID;
 public interface IOrderService {
     OrderResponse placeOrder(PlaceOrderRequest request);
     OrderResponse getById(UUID id);
+    OrderResponse getGuestOrderByIdAndPhone(UUID id, String phone);
     List<OrderResponse> getAll();
     List<OrderResponse> getMyOrders();
     OrderResponse updateStatus(UUID id, UpdateOrderStatusRequest request);

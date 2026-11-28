@@ -48,6 +48,8 @@ public class SecurityConfig {
     public static final String OFFERS_ROOT = "/api/offers";
     public static final String OFFERS_BASE = "/api/offers/**";
     public static final String PROMO_VALIDATE = "/api/promo-codes/validate";
+    public static final String ORDERS_ROOT = "/api/orders";
+    public static final String ORDERS_GUEST = "/api/orders/guest/**";
     public static final String DELIVERY_BASE = "/api/delivery/**";
     /** SSE stream — auth is performed via the one-time token query param, not JWT header. */
     public static final String SSE_ORDERS = "/api/sse/orders";
@@ -100,7 +102,8 @@ public class SecurityConfig {
                                         SSE_ORDERS,  // token-validated, not JWT — browsers can't set headers on EventSource
                                         UPLOADS_STATIC
                                 ).permitAll()
-                                .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE, OFFERS_ROOT, OFFERS_BASE, PROMO_VALIDATE, UPLOADS_STATIC).permitAll()
+                                .requestMatchers(HttpMethod.GET, MENU_BASE, BRANCHES_ROOT, BRANCHES_BASE, OFFERS_ROOT, OFFERS_BASE, PROMO_VALIDATE, UPLOADS_STATIC, ORDERS_GUEST).permitAll()
+                                .requestMatchers(HttpMethod.POST, ORDERS_ROOT).permitAll()
                                 .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

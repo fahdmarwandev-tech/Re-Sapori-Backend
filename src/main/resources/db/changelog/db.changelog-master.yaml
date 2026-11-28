@@ -93,3 +93,5 @@ databaseChangeLog:
       file: db/changelog/changes/46-allow-reuse-inactive-promo-codes.sql
   - include:
       file: db/changelog/changes/47-add-category-addons-and-make-combo.sql
+  - include:
+      file: db/changelog/changes/48-guest-checkout-and-welcome-promo.sql

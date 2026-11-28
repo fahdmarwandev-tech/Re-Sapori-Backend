@@ -1160,4 +1160,208 @@ class OrderServiceImplTest {
         assertThrows(org.springframework.security.access.AccessDeniedException.class,
                 () -> orderService.updateStatus(orderId, req));
     }
+
+    @Test
+    @DisplayName("placeOrder: Guest delivery order succeeds without user account and saves customerName snapshot")
+    void placeOrder_GuestDeliverySucceeds() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(null);
+        when(orderRepository.countRecentGuestOrdersByPhone(eq("01012345678"), any())).thenReturn(0L);
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+        when(deliveryService.calculateDeliveryFee(
+                any(com.resapori.e_commerce.northbound.dto.delivery.CalculateDeliveryFeeRequest.class)))
+                .thenReturn(
+                        DeliveryFeeResponse.builder()
+                                .isCovered(true)
+                                .deliveryFee(BigDecimal.valueOf(35.00))
+                                .branchId(testBranch.getId())
+                                .build()
+                );
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(new OrderResponse());
+        when(orderItemMapper.toResponse(any(OrderItem.class))).thenReturn(new OrderItemResponse());
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.DELIVERY);
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setCustomerName("Ahmed Guest");
+        request.setPhoneNumber("+20 101-234-5678");
+        request.setStreet("El Nasr St");
+        request.setLat(BigDecimal.valueOf(30.0444));
+        request.setLng(BigDecimal.valueOf(31.2357));
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        OrderResponse response = orderService.placeOrder(request);
+        assertNotNull(response);
+
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        Order saved = captor.getValue();
+        assertNull(saved.getUser());
+        assertEquals("Ahmed Guest", saved.getCustomerName());
+        assertEquals("01012345678", saved.getCustomerPhone());
+        assertEquals(0, BigDecimal.valueOf(275.00).compareTo(saved.getTotalAmount()));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Guest cannot apply promo codes or saved addressId")
+    void placeOrder_GuestPromoRejected() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(null);
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setCustomerName("Guest");
+        request.setPhoneNumber("01012345678");
+        request.setPromoCode("WELCOME10");
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        assertThrows(IllegalArgumentException.class, () -> orderService.placeOrder(request));
+    }
+
+    @Test
+    @DisplayName("placeOrder: Invalid Bearer token returns 401 instead of falling back to guest")
+    void placeOrder_ExpiredBearerReturns401() {
+        org.springframework.mock.web.MockHttpServletRequest mockReq = new org.springframework.mock.web.MockHttpServletRequest();
+        mockReq.addHeader("Authorization", "Bearer expired.jwt.token");
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+                new org.springframework.web.context.request.ServletRequestAttributes(mockReq));
+        try {
+            when(authUtil.getAuthenticatedUser()).thenReturn(null);
+
+            PlaceOrderRequest request = new PlaceOrderRequest();
+            request.setOrderType(OrderType.PICKUP);
+            request.setBranchId(testBranch.getId());
+            request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+            request.setCustomerName("Logged Out User");
+            request.setPhoneNumber("01012345678");
+
+            OrderItemInput itemInput = new OrderItemInput();
+            itemInput.setMenuItemId(pizzaItem.getId());
+            itemInput.setQuantity(1);
+            itemInput.setSize(ItemSize.REGULAR);
+            request.setItems(List.of(itemInput));
+
+            org.springframework.web.server.ResponseStatusException ex = assertThrows(
+                    org.springframework.web.server.ResponseStatusException.class,
+                    () -> orderService.placeOrder(request));
+            assertEquals(401, ex.getStatusCode().value());
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    @DisplayName("placeOrder: WELCOME10 succeeds on first order and rejects on second order")
+    void placeOrder_WelcomePromoFirstOrderOnly() {
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+        when(branchRepository.findById(testBranch.getId())).thenReturn(Optional.of(testBranch));
+        when(menuItemRepository.findAllById(any())).thenReturn(List.of(pizzaItem));
+
+        PromoCode welcome = new PromoCode();
+        welcome.setId(UUID.fromString("11111111-1111-4111-8111-111111111010"));
+        welcome.setCode("WELCOME10");
+        welcome.setDiscountType(DiscountType.PERCENTAGE);
+        welcome.setDiscountValue(BigDecimal.valueOf(10.00));
+        welcome.setMaxUsesPerUser(1);
+        welcome.setActive(true);
+
+        when(promoCodeRepository.findByCodeIgnoreCaseAndIsActiveTrue("WELCOME10")).thenReturn(Optional.of(welcome));
+        when(orderRepository.countCompletedOrActiveOrdersByUserId(testUser.getId())).thenReturn(1L);
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setPromoCode("WELCOME10");
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        assertThrows(IllegalArgumentException.class, () -> orderService.placeOrder(request));
+    }
+
+    @Test
+    @DisplayName("placeOrder: WELCOME10 applies 10% off food subtotal when user has 0 prior orders")
+    void placeOrder_WelcomePromoFirstOrderSucceeds() {
+        mockCommonOrderFlow();
+
+        PromoCode welcome = new PromoCode();
+        welcome.setId(UUID.fromString("11111111-1111-4111-8111-111111111010"));
+        welcome.setCode("WELCOME10");
+        welcome.setDiscountType(DiscountType.PERCENTAGE);
+        welcome.setDiscountValue(BigDecimal.valueOf(10.00));
+        welcome.setMaxUsesPerUser(1);
+        welcome.setActive(true);
+
+        when(promoCodeRepository.findByCodeIgnoreCaseAndIsActiveTrue("WELCOME10")).thenReturn(Optional.of(welcome));
+        when(orderRepository.countCompletedOrActiveOrdersByUserId(testUser.getId())).thenReturn(0L);
+        when(promoCodeRedemptionRepository.countByPromoCodeIdAndUserId(welcome.getId(), testUser.getId())).thenReturn(0L);
+
+        PlaceOrderRequest request = new PlaceOrderRequest();
+        request.setOrderType(OrderType.PICKUP);
+        request.setBranchId(testBranch.getId());
+        request.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
+        request.setPromoCode("WELCOME10");
+
+        OrderItemInput itemInput = new OrderItemInput();
+        itemInput.setMenuItemId(pizzaItem.getId());
+        itemInput.setQuantity(1);
+        itemInput.setSize(ItemSize.REGULAR);
+        request.setItems(List.of(itemInput));
+
+        OrderResponse res = orderService.placeOrder(request);
+        assertNotNull(res);
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        // 240 * 0.90 = 216.00
+        assertEquals(0, BigDecimal.valueOf(216.00).compareTo(captor.getValue().getTotalAmount()));
+    }
+
+    @Test
+    @DisplayName("getById: Customer accessing a guest order gets AccessDeniedException cleanly without NPE")
+    void getById_GuestOrderAccessedByCustomerThrowsAccessDenied() {
+        UUID orderId = UUID.randomUUID();
+        Order guestOrder = new Order();
+        guestOrder.setId(orderId);
+        guestOrder.setUser(null);
+
+        when(orderRepository.findByIdWithUserAndBranch(orderId)).thenReturn(Optional.of(guestOrder));
+        when(authUtil.getAuthenticatedUser()).thenReturn(testUser);
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> orderService.getById(orderId));
+    }
+
+    @Test
+    @DisplayName("getGuestOrderByIdAndPhone: Matches normalized phone and denies mismatch")
+    void getGuestOrderByIdAndPhone_ChecksPhoneMatch() {
+        UUID orderId = UUID.randomUUID();
+        Order guestOrder = new Order();
+        guestOrder.setId(orderId);
+        guestOrder.setCustomerPhone("01012345678");
+        guestOrder.setCustomerName("Guest");
+
+        when(orderRepository.findByIdWithUserAndBranch(orderId)).thenReturn(Optional.of(guestOrder));
+        when(orderItemRepository.findByOrderIdWithMenuItem(orderId)).thenReturn(List.of());
+        when(orderMapper.toResponse(guestOrder)).thenReturn(new OrderResponse());
+
+        assertNotNull(orderService.getGuestOrderByIdAndPhone(orderId, "+20 101 234 5678"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> orderService.getGuestOrderByIdAndPhone(orderId, "01099999999"));
+    }
 }

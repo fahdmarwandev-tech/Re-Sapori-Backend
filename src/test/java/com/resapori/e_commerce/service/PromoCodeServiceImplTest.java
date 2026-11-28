@@ -1,13 +1,18 @@
 package com.resapori.e_commerce.service;
 
 import com.resapori.e_commerce.common.exception.ResourceNotFoundException;
+import com.resapori.e_commerce.common.security.AuthUtil;
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeRequest;
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeResponse;
+import com.resapori.e_commerce.northbound.dto.promo.WelcomeEligibilityResponse;
 import com.resapori.e_commerce.service.impl.PromoCodeServiceImpl;
 import com.resapori.e_commerce.southbound.entity.PromoCode;
+import com.resapori.e_commerce.southbound.entity.User;
 import com.resapori.e_commerce.southbound.enums.DiscountType;
 import com.resapori.e_commerce.southbound.mapper.PromoCodeMapper;
 import com.resapori.e_commerce.southbound.repository.IMenuItemRepository;
+import com.resapori.e_commerce.southbound.repository.IOrderRepository;
+import com.resapori.e_commerce.southbound.repository.IPromoCodeRedemptionRepository;
 import com.resapori.e_commerce.southbound.repository.IPromoCodeRepository;
 import com.resapori.e_commerce.southbound.repository.IUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +43,15 @@ class PromoCodeServiceImplTest {
 
     @Mock
     private IUserRepository userRepository;
+
+    @Mock
+    private IOrderRepository orderRepository;
+
+    @Mock
+    private IPromoCodeRedemptionRepository promoCodeRedemptionRepository;
+
+    @Mock
+    private AuthUtil authUtil;
 
     @Mock
     private PromoCodeMapper mapper;
@@ -179,5 +193,50 @@ class PromoCodeServiceImplTest {
 
         assertFalse(testPromo.isActive());
         verify(repository).save(testPromo);
+    }
+
+    @Test
+    @DisplayName("checkWelcomeEligibility: Returns eligible=true when user has zero orders and zero redemptions")
+    void checkWelcomeEligibility_EligibleFirstOrder() {
+        User user = new User();
+        user.setId(java.util.UUID.randomUUID());
+
+        PromoCode welcomePromo = new PromoCode();
+        welcomePromo.setId(java.util.UUID.randomUUID());
+        welcomePromo.setCode("WELCOME10");
+        welcomePromo.setDiscountType(DiscountType.PERCENTAGE);
+        welcomePromo.setDiscountValue(BigDecimal.valueOf(10.00));
+        welcomePromo.setMaxUsesPerUser(1);
+        welcomePromo.setActive(true);
+
+        when(authUtil.getAuthenticatedUser()).thenReturn(user);
+        when(repository.findByCodeIgnoreCaseAndIsActiveTrue("WELCOME10")).thenReturn(Optional.of(welcomePromo));
+        when(orderRepository.countCompletedOrActiveOrdersByUserId(user.getId())).thenReturn(0L);
+        when(promoCodeRedemptionRepository.countByPromoCodeIdAndUserId(welcomePromo.getId(), user.getId())).thenReturn(0L);
+
+        WelcomeEligibilityResponse res = promoCodeService.checkWelcomeEligibility();
+        assertTrue(res.isEligible());
+        assertEquals("WELCOME10", res.getCode());
+    }
+
+    @Test
+    @DisplayName("checkWelcomeEligibility: Returns eligible=false when user already has prior orders")
+    void checkWelcomeEligibility_IneligibleWithPriorOrder() {
+        User user = new User();
+        user.setId(java.util.UUID.randomUUID());
+
+        PromoCode welcomePromo = new PromoCode();
+        welcomePromo.setId(java.util.UUID.randomUUID());
+        welcomePromo.setCode("WELCOME10");
+        welcomePromo.setDiscountValue(BigDecimal.valueOf(10.00));
+        welcomePromo.setMaxUsesPerUser(1);
+        welcomePromo.setActive(true);
+
+        when(authUtil.getAuthenticatedUser()).thenReturn(user);
+        when(repository.findByCodeIgnoreCaseAndIsActiveTrue("WELCOME10")).thenReturn(Optional.of(welcomePromo));
+        when(orderRepository.countCompletedOrActiveOrdersByUserId(user.getId())).thenReturn(1L);
+
+        WelcomeEligibilityResponse res = promoCodeService.checkWelcomeEligibility();
+        assertFalse(res.isEligible());
     }
 }

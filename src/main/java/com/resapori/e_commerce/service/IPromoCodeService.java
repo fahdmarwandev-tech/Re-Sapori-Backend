@@ -2,6 +2,7 @@ package com.resapori.e_commerce.service;
 
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeRequest;
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeResponse;
+import com.resapori.e_commerce.northbound.dto.promo.WelcomeEligibilityResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,4 +14,5 @@ public interface IPromoCodeService {
     PromoCodeResponse update(UUID id, PromoCodeRequest request);
     void delete(UUID id);
     PromoCodeResponse validateCode(String code);
+    WelcomeEligibilityResponse checkWelcomeEligibility();
 }

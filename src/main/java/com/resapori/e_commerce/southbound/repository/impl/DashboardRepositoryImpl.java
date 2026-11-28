@@ -46,6 +46,7 @@ public class DashboardRepositoryImpl implements IDashboardRepository {
                 o.branch_id,
                 o.created_at,
                 o.user_id,
+                o.customer_name,
                 (o.created_at AT TIME ZONE 'Africa/Cairo')::date AS order_date
             FROM orders o
             CROSS JOIN params p
@@ -159,7 +160,7 @@ public class DashboardRepositoryImpl implements IDashboardRepository {
             SELECT 
                 o.id::text AS id,
                 CONCAT('#RS-', UPPER(SUBSTRING(REPLACE(o.id::text, '-', ''), 1, 6))) AS order_number,
-                TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS customer_name,
+                COALESCE(NULLIF(TRIM(o.customer_name), ''), NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Guest') AS customer_name,
                 o.order_type::text AS order_type,
                 CASE 
                     WHEN o.order_type = 'DELIVERY' THEN COALESCE(o.delivery_address, 'Delivery')

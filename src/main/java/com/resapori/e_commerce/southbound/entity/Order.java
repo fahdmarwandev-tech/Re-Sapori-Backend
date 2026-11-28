@@ -27,7 +27,7 @@ import java.math.BigDecimal;
 public class Order extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -64,6 +64,9 @@ public class Order extends BaseEntity {
 
     @Column(name = "customer_phone")
     private String customerPhone;
+
+    @Column(name = "customer_name")
+    private String customerName;
 
     @Column(name = "street")
     private String street;

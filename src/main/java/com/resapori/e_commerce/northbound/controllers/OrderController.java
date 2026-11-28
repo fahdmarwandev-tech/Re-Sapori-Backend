@@ -21,11 +21,18 @@ public class OrderController {
 
     private final IOrderService service;
 
-    /** POST /api/orders — place a new order. (CUSTOMER / ADMIN) */
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    /** POST /api/orders — place a new order (Guest or Authenticated CUSTOMER / ADMIN). */
     @PostMapping
     public ResponseEntity<OrderResponse> placeOrder(@RequestBody @Valid PlaceOrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.placeOrder(request));
+    }
+
+    /** GET /api/orders/guest/{id}?phone=... — public guest order tracking scoped by phone match. */
+    @GetMapping("/guest/{id}")
+    public ResponseEntity<OrderResponse> getGuestOrder(
+            @PathVariable UUID id,
+            @RequestParam String phone) {
+        return ResponseEntity.ok(service.getGuestOrderByIdAndPhone(id, phone));
     }
 
     /** GET /api/orders/my — get authenticated user's orders (CUSTOMER / ADMIN) */

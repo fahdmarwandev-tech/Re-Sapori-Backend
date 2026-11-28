@@ -2,6 +2,7 @@ package com.resapori.e_commerce.northbound.controllers;
 
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeRequest;
 import com.resapori.e_commerce.northbound.dto.promo.PromoCodeResponse;
+import com.resapori.e_commerce.northbound.dto.promo.WelcomeEligibilityResponse;
 import com.resapori.e_commerce.service.IPromoCodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -40,6 +41,12 @@ public class PromoCodeController {
     @GetMapping("/validate")
     public ResponseEntity<PromoCodeResponse> validateCode(@RequestParam String code) {
         return ResponseEntity.ok(service.validateCode(code));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/welcome-eligibility")
+    public ResponseEntity<WelcomeEligibilityResponse> checkWelcomeEligibility() {
+        return ResponseEntity.ok(service.checkWelcomeEligibility());
     }
 
     @PreAuthorize("hasRole('ADMIN')")

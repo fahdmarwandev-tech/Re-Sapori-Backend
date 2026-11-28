@@ -18,21 +18,35 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
 public class OrderServiceImpl implements IOrderService {
+
+    private static final String WELCOME_PROMO_CODE = "WELCOME10";
+    private static final int MAX_GUEST_ORDERS_PER_PHONE_PER_HOUR = 5;
+    private static final int MAX_GUEST_ORDERS_PER_IP_PER_HOUR = 10;
+    private final Map<String, Deque<Instant>> guestIpOrderTimestamps = new ConcurrentHashMap<>();
 
     private final IOrderRepository orderRepository;
     private final IOrderItemRepository orderItemRepository;
@@ -56,24 +70,31 @@ public class OrderServiceImpl implements IOrderService {
     @Transactional
     public OrderResponse placeOrder(PlaceOrderRequest request) {
         validateOrderPayload(request);
-        User user = getAuthenticatedUserOrThrow();
+        User user = authUtil.getAuthenticatedUser();
 
-        // Always associate and persist the entered contact phone number with the customer's account
-        String enteredPhone = request.getEffectivePhoneNumber();
-        if (enteredPhone != null && !enteredPhone.isBlank()) {
-            user.setPhoneNumber(enteredPhone.trim());
-            user = userRepository.save(user);
-        }
-
-        // Also associate customer name if profile name is missing
-        if (request.getCustomerName() != null && !request.getCustomerName().isBlank()) {
-            if (user.getFirstName() == null || user.getFirstName().isBlank()) {
-                String[] parts = request.getCustomerName().trim().split(" ", 2);
-                user.setFirstName(parts[0]);
-                if (parts.length > 1) {
-                    user.setLastName(parts[1]);
-                }
+        if (user == null) {
+            if (hasBearerTokenInRequest()) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired. Please refresh and try again.");
+            }
+            validateGuestOrderRequest(request);
+        } else {
+            // Always associate and persist the entered contact phone number with the customer's account
+            String enteredPhone = request.getEffectivePhoneNumber();
+            if (enteredPhone != null && !enteredPhone.isBlank()) {
+                user.setPhoneNumber(enteredPhone.trim());
                 user = userRepository.save(user);
+            }
+
+            // Also associate customer name if profile name is missing
+            if (request.getCustomerName() != null && !request.getCustomerName().isBlank()) {
+                if (user.getFirstName() == null || user.getFirstName().isBlank()) {
+                    String[] parts = request.getCustomerName().trim().split(" ", 2);
+                    user.setFirstName(parts[0]);
+                    if (parts.length > 1) {
+                        user.setLastName(parts[1]);
+                    }
+                    user = userRepository.save(user);
+                }
             }
         }
 
@@ -112,6 +133,26 @@ public class OrderServiceImpl implements IOrderService {
         Order order = orderRepository.findByIdWithUserAndBranch(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         validateOrderAccess(order);
+        List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(order.getId());
+        return mapToResponse(order, items);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getGuestOrderByIdAndPhone(UUID id, String phone) {
+        String normalizedQuery = normalizeEgyptianPhone(phone);
+        if (normalizedQuery == null || normalizedQuery.isBlank()) {
+            throw new IllegalArgumentException("Phone number is required");
+        }
+        Order order = orderRepository.findByIdWithUserAndBranch(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        String storedPhone = normalizeEgyptianPhone(
+                order.getCustomerPhone() != null ? order.getCustomerPhone()
+                        : (order.getUser() != null ? order.getUser().getPhoneNumber() : null)
+        );
+        if (storedPhone == null || !storedPhone.equals(normalizedQuery)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Phone number does not match this order");
+        }
         List<OrderItem> items = orderItemRepository.findByOrderIdWithMenuItem(order.getId());
         return mapToResponse(order, items);
     }
@@ -222,12 +263,29 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(OrderStatus.PENDING);
         order.setCurrency("EGP");
 
-        // Customer contact phone snapshot
+        // Customer contact phone & name snapshot
         String effectivePhone = request.getEffectivePhoneNumber();
         if ((effectivePhone == null || effectivePhone.isBlank()) && user != null) {
             effectivePhone = user.getPhoneNumber();
         }
+        if (user == null && effectivePhone != null) {
+            String normalized = normalizeEgyptianPhone(effectivePhone);
+            if (normalized != null) {
+                effectivePhone = normalized;
+            }
+        }
         order.setCustomerPhone(effectivePhone);
+
+        if (request.getCustomerName() != null && !request.getCustomerName().isBlank()) {
+            order.setCustomerName(request.getCustomerName().trim());
+        } else if (user != null) {
+            String first = user.getFirstName() != null ? user.getFirstName() : "";
+            String last = user.getLastName() != null ? user.getLastName() : "";
+            String fullName = (first + " " + last).trim();
+            if (!fullName.isEmpty()) {
+                order.setCustomerName(fullName);
+            }
+        }
 
         // Resolve saved address if provided
         UserAddress address = null;
@@ -335,6 +393,9 @@ public class OrderServiceImpl implements IOrderService {
                 }
 
                 BigDecimal fee = BigDecimal.valueOf(35.00);
+                if (user == null && (request.getLat() == null || request.getLng() == null)) {
+                    throw new IllegalArgumentException("Please pin your delivery location on the map");
+                }
                 if (request.getLat() != null && request.getLng() != null) {
                     DeliveryFeeResponse feeRes = deliveryService.calculateDeliveryFee(
                             com.resapori.e_commerce.northbound.dto.delivery.CalculateDeliveryFeeRequest.builder()
@@ -342,6 +403,9 @@ public class OrderServiceImpl implements IOrderService {
                                     .lng(request.getLng())
                                     .branchId(request.getBranchId())
                                     .build());
+                    if (feeRes != null && !feeRes.isCovered()) {
+                        throw new IllegalArgumentException("عذراً، العنوان المحدد يقع خارج نطاق التوصيل لجميع فروعنا (Selected address is outside our delivery zones)");
+                    }
                     if (feeRes != null && feeRes.getDeliveryFee() != null) {
                         fee = feeRes.getDeliveryFee();
                     }
@@ -920,7 +984,7 @@ public class OrderServiceImpl implements IOrderService {
             }
             return;
         }
-        if (!order.getUser().getId().equals(user.getId())) {
+        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
             throw new AccessDeniedException("Cannot access other users' orders");
         }
     }
@@ -1127,6 +1191,9 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private void validatePromoEligibility(PromoCode promo, User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("Please sign in or sign up to use promo codes");
+        }
         if (promo.getExpiryDate() != null && promo.getExpiryDate().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Promo code has expired");
         }
@@ -1135,6 +1202,10 @@ public class OrderServiceImpl implements IOrderService {
         }
         if (promo.getUser() != null && !promo.getUser().getId().equals(user.getId())) {
             throw new AccessDeniedException("This promo code is not assigned to your account");
+        }
+        if (WELCOME_PROMO_CODE.equalsIgnoreCase(promo.getCode())
+                && orderRepository.countCompletedOrActiveOrdersByUserId(user.getId()) > 0) {
+            throw new IllegalArgumentException("Welcome discount is only valid for your first order");
         }
         long userUses = promoCodeRedemptionRepository.countByPromoCodeIdAndUserId(promo.getId(), user.getId());
         if (userUses >= promo.getMaxUsesPerUser()) {
@@ -1171,15 +1242,103 @@ public class OrderServiceImpl implements IOrderService {
     }
 
     private void finalizePromoRedemption(PromoContext ctx, User user, Order savedOrder) {
-        if (ctx == null) return;
+        if (ctx == null || user == null) return;
         PromoCodeRedemption redemption = new PromoCodeRedemption();
         redemption.setPromoCode(ctx.promoCode());
         redemption.setUser(user);
         redemption.setOrder(savedOrder);
         redemption.setDiscountApplied(ctx.discountApplied());
         redemption.setRedeemedAt(LocalDateTime.now());
-        promoCodeRedemptionRepository.save(redemption);
+        try {
+            promoCodeRedemptionRepository.save(redemption);
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("You have reached the maximum redemptions for this promo code");
+        }
         promoCodeRepository.incrementCurrentUses(ctx.promoCode().getId());
+    }
+
+    private boolean hasBearerTokenInRequest() {
+        RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof ServletRequestAttributes sra) {
+            String auth = sra.getRequest().getHeader("Authorization");
+            return auth != null && auth.regionMatches(true, 0, "Bearer ", 0, 7);
+        }
+        return false;
+    }
+
+    private void validateGuestOrderRequest(PlaceOrderRequest request) {
+        if (request.getCustomerName() == null || request.getCustomerName().trim().isBlank()) {
+            throw new IllegalArgumentException("Customer name is required for guest orders");
+        }
+        String normalizedPhone = normalizeEgyptianPhone(request.getEffectivePhoneNumber());
+        if (normalizedPhone == null || !normalizedPhone.matches("^01[0125]\\d{8}$")) {
+            throw new IllegalArgumentException("Valid 11-digit Egyptian mobile number is required");
+        }
+        if (request.getAddressId() != null) {
+            throw new IllegalArgumentException("Guests cannot use saved addresses");
+        }
+        if (request.getPromoCode() != null && !request.getPromoCode().trim().isBlank()) {
+            throw new IllegalArgumentException("Please sign in or sign up to use promo codes");
+        }
+        enforceGuestRateLimits(normalizedPhone);
+    }
+
+    private void enforceGuestRateLimits(String normalizedPhone) {
+        long recentPhoneCount = orderRepository.countRecentGuestOrdersByPhone(
+                normalizedPhone, LocalDateTime.now().minusHours(1));
+        if (recentPhoneCount >= MAX_GUEST_ORDERS_PER_PHONE_PER_HOUR) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many orders from this phone number. Please try again later.");
+        }
+        String clientIp = extractClientIp();
+        if (clientIp == null) return;
+        Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
+        Deque<Instant> timestamps = guestIpOrderTimestamps.computeIfAbsent(clientIp, k -> new ArrayDeque<>());
+        synchronized (timestamps) {
+            while (!timestamps.isEmpty() && timestamps.peekFirst().isBefore(cutoff)) {
+                timestamps.pollFirst();
+            }
+            if (timestamps.size() >= MAX_GUEST_ORDERS_PER_IP_PER_HOUR) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                        "Too many guest orders from your connection. Please try again later.");
+            }
+            timestamps.addLast(Instant.now());
+        }
+    }
+
+    private String extractClientIp() {
+        RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
+        if (!(attrs instanceof ServletRequestAttributes sra)) return null;
+        String forwarded = sra.getRequest().getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return sra.getRequest().getRemoteAddr();
+    }
+
+    private String normalizeEgyptianPhone(String raw) {
+        if (raw == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c >= '\u0660' && c <= '\u0669') {
+                sb.append((char) ('0' + (c - '\u0660')));
+            } else if (Character.isDigit(c)) {
+                sb.append(c);
+            }
+        }
+        String digits = sb.toString();
+        if (digits.startsWith("0020")) {
+            digits = digits.substring(3);
+        } else if (digits.startsWith("002")) {
+            digits = digits.substring(3);
+        } else if (digits.startsWith("20") && digits.length() == 12) {
+            digits = digits.substring(1);
+        }
+        if (digits.length() == 10 && digits.startsWith("1")) {
+            digits = "0" + digits;
+        }
+        return digits;
     }
 
     @Getter

@@ -22,6 +22,9 @@ public interface OrderMapper {
     OrderResponse toResponse(Order entity);
 
     default String formatCustomerName(Order entity) {
+        if (entity.getCustomerName() != null && !entity.getCustomerName().isBlank()) {
+            return entity.getCustomerName().trim();
+        }
         if (entity.getUser() == null) return null;
         String first = entity.getUser().getFirstName() != null ? entity.getUser().getFirstName() : "";
         String last = entity.getUser().getLastName() != null ? entity.getUser().getLastName() : "";
